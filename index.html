@@ -631,7 +631,7 @@ const TABLIST=[["char","Charakter"],["dice","Würfeln"],["party","Crew"],["map",
 let panes=[],activePane=0;
 try{const sv=JSON.parse(localStorage.getItem("nct-panes")||"[]");if(Array.isArray(sv)&&sv.length>1&&sv.every(k=>TABLIST.some(t=>t[0]===k)))panes=sv.slice(0,3)}catch(e){}
 const savePanes=()=>{try{localStorage.setItem("nct-panes",JSON.stringify(panes))}catch(e){}};
-let inits={},folding=false,combat={},notes=[],noteKind="handout",skOnly=false;
+let inits={},folding=false,combat={},notes=[],noteKind="handout",skMode=(()=>{try{return localStorage.getItem("nct-skmode")||"learned"}catch(e){return "learned"}})();
 let rulesFor=null;
 let draft=null;           // Charaktererstellung
 let pick={die:10,count:1,mod:0,stat:"",check:true,hidden:false};
@@ -1329,10 +1329,11 @@ function skillsPanel(c,editable){
   const sk=c.skills||{};
   const groups=STATS.map(([k])=>[k,SKILLS.filter(s=>s[1]===k)]).filter(g=>g[1].length);
   return `<section class="panel stack"><div class="row" style="justify-content:space-between"><h2>Skills <span class="tag">KLICK = PROBE</span></h2>
-    <div class="row" style="gap:12px">${editable?`<span class="chip" style="color:var(--yel);border-color:var(--yel)">${c.ip||0} IP</span><label class="row" style="gap:6px"><input type="checkbox" id="freeEdit" ${freeEdit?"checked":""} style="width:auto"> <span class="muted">Frei korrigieren</span></label>`:""}<label class="row" style="gap:6px"><input type="checkbox" id="skOnly" ${skOnly?"checked":""} style="width:auto"> <span class="muted">Nur gelernte</span></label></div></div>
-    <div class="skills">${groups.map(([k,list])=>{const rows=list.filter(([n])=>!skOnly||(sk[n]||0)>0);if(!rows.length)return"";
+    <div class="row" style="gap:12px">${editable?`<span class="chip" style="color:var(--yel);border-color:var(--yel)">${c.ip||0} IP</span><label class="row" style="gap:6px"><input type="checkbox" id="freeEdit" ${freeEdit?"checked":""} style="width:auto"> <span class="muted">Frei korrigieren</span></label>`:""}<div class="seg">${[["learned","Gelernte"],["all","Alle"],...(editable?[["level","Steigern"]]:[])].map(([k,l])=>`<button data-act="skmode" data-k="${k}" aria-pressed="${skMode===k||(!editable&&skMode==="level"&&k==="all")}">${l}</button>`).join("")}</div></div></div>
+    ${skMode==="all"?`<p class="muted" style="margin:0;font-size:13px">Ungelernte Skills würfelst du mit Stufe 0, also nur Wert + 1W10. Das ist erlaubt, wenn der DM es zulässt.</p>`:skMode==="level"&&editable?`<p class="muted" style="margin:0;font-size:13px">Steigern: neue Stufe × 20 IP, ×2-Skills das Doppelte. Gelb = genug IP.</p>`:""}
+    <div class="skills">${groups.map(([k,list])=>{const lvl=editable&&(skMode==="level"||freeEdit),rows=list.filter(([n])=>skMode!=="learned"||lvl||(sk[n]||0)>0);if(!rows.length)return"";
       return `<div class="skg"><div class="label">${k} · ${c.stats[k]}</div>${rows.map(([n])=>{const lv=sk[n]||0,base=c.stats[k]+lv;
-        return `<div class="sk ${lv?"":"zero"}">${editable?`<button class="pinbtn" data-act="pin" data-k="${esc(n)}" aria-pressed="${pinsOf(c).includes(n)}" aria-label="${esc(n)} in die Schnellleiste">★</button>`:""}<button class="skroll" data-act="skroll" data-k="${esc(n)}" data-s="${k}" title="${esc(n)}-Check würfeln"><span class="sn">${esc(n)}</span><span class="sb">+${base}</span></button>${editable?(freeEdit?`<span class="mini"><button data-act="sk" data-k="${esc(n)}" data-d="-1" aria-label="${esc(n)} senken">−</button><span>${lv}</span><button data-act="sk" data-k="${esc(n)}" data-d="1" aria-label="${esc(n)} erhöhen">+</button></span>`:`<span class="mini"><span>${lv}</span>${lv<10?`<button data-act="skup" data-k="${esc(n)}" title="Auf ${lv+1} steigern: ${skillCost(n,lv+1)} IP" aria-label="${esc(n)} auf ${lv+1} steigern, ${skillCost(n,lv+1)} IP" class="${(c.ip||0)>=skillCost(n,lv+1)?"afford":""}">+</button>`:""}</span>`):""}${HARD.has(n)?'<span class="hard" title="Schwere Skill, doppelte Kosten">×2</span>':""}</div>`}).join("")}</div>`}).join("")||`<div class="empty">Noch keine Skill gelernt. Schalte den Filter aus und erhöhe die Stufen mit +.</div>`}</div>
+        return `<div class="sk ${lv?"":"zero"}">${editable?`<button class="pinbtn" data-act="pin" data-k="${esc(n)}" aria-pressed="${pinsOf(c).includes(n)}" aria-label="${esc(n)} in die Schnellleiste">★</button>`:""}<button class="skroll" data-act="skroll" data-k="${esc(n)}" data-s="${k}" title="${esc(n)}-Check würfeln"><span class="sn">${esc(n)}</span><span class="sb">+${base}</span></button>${editable&&lvl?(freeEdit?`<span class="mini"><button data-act="sk" data-k="${esc(n)}" data-d="-1" aria-label="${esc(n)} senken">−</button><span>${lv}</span><button data-act="sk" data-k="${esc(n)}" data-d="1" aria-label="${esc(n)} erhöhen">+</button></span>`:`<span class="mini"><span>${lv}</span>${lv<10?`<button data-act="skup" data-k="${esc(n)}" title="Auf ${lv+1} steigern: ${skillCost(n,lv+1)} IP" aria-label="${esc(n)} auf ${lv+1} steigern, ${skillCost(n,lv+1)} IP" class="${(c.ip||0)>=skillCost(n,lv+1)?"afford":""}">+</button>`:""}</span>`):`<span class="mini"><span>${lv}</span></span>`}${HARD.has(n)?'<span class="hard" title="Schwere Skill, doppelte Kosten">×2</span>':""}</div>`}).join("")}</div>`}).join("")||`<div class="empty">Noch keine Skill gelernt. Wechsle auf „Steigern“, um Stufen mit IP zu kaufen.</div>`}</div>
   </section>`;
 }
 function wBase(c,w){const st=(SKILLS.find(s=>s[0]===w.skill)||[0,"REF"])[1];const lv=(c.skills||{})[w.skill]||0;return{st,lv,base:(c.stats[st]||0)+lv}}
@@ -2576,6 +2577,7 @@ document.addEventListener("click",async e=>{
     toast(`${q}× ${it.name} an ${chars[to]?.handle||chars[to]?.name} übergeben.`);
   }
   else if(a==="rulesfor"){rulesFor=b.dataset.k;render()}
+  else if(a==="skmode"){skMode=b.dataset.k;try{localStorage.setItem("nct-skmode",skMode)}catch(e){}render()}
   else if(a==="dsave")deathSave();
   else if(a==="dsreset"){editChar(myCid(),x=>{x.dsPen=0});toast("Stabilisiert. Die Death-Save-Strafe ist zurückgesetzt.")}
   else if(a==="facedown"){const c=myChar();if(!c)return;rollCheck((c.stats.COOL||0)+(c.rep||0),`1W10 + COOL ${c.stats.COOL||0} + Reputation ${c.rep||0}`,"· Facedown")}
@@ -2798,7 +2800,7 @@ document.addEventListener("change",e=>{
   if(el.id==="map-fog"){const m=editMap();if(m){m.fog=el.checked;saveMapNow()}el.blur();render()}
   if(el.id==="map-name"){const m=editMap();if(m){m.name=el.value.trim()||"Karte";saveMapNow()}}
   if(el.id==="cat-pay"){catPay=el.checked}
-  if(el.id==="skOnly"){skOnly=el.checked;el.blur();render()}
+
   if(el.id==="freeEdit"){freeEdit=el.checked;el.blur();render()}
 });
 document.addEventListener("submit",e=>{
