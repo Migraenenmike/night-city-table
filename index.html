@@ -117,6 +117,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--cyan);outline:none}
 .dicepick{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:8px}
 .dpick{background:var(--bg);border:1px solid var(--line);padding:10px 4px 8px;cursor:pointer;display:grid;justify-items:center;gap:4px;font-family:var(--f-display);font-size:14px}
 .dpick svg{width:40px;height:40px}
+.dicepick.main{grid-template-columns:1fr 1fr}
+.dicepick.main .dpick{padding:14px 6px 10px;font-size:17px}.dicepick.main .dpick svg{width:56px;height:56px}
+.dpick small{font-family:var(--f-body);font-size:11px;color:var(--muted);text-transform:none;letter-spacing:0}
+.moredice summary{cursor:pointer;color:var(--muted);font-size:13px;padding:2px 0}
+.moredice[open] summary{margin-bottom:8px}
 .dpick:hover,.dpick[aria-pressed="true"]{border-color:var(--yel);color:var(--yel)}
 .dpick:hover svg polygon,.dpick[aria-pressed="true"] svg polygon,.dpick[aria-pressed="true"] svg rect{stroke:var(--yel)}
 .stepper{display:flex;align-items:center;border:1px solid var(--line);width:max-content}
@@ -316,8 +321,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--cyan);outline:none}
 .cslots span{margin-left:4px}
 .mini button.afford{color:var(--ok)}
 .hard{font-family:var(--f-mono);font-size:10px;color:var(--mag);flex:none}
-.mapbox{position:relative;height:min(68vh,760px);min-height:320px;border:1px solid var(--line);overflow:hidden;touch-action:none;background:#1e1e22}
+.mapbox{position:relative;user-select:none;-webkit-user-select:none;height:min(68vh,760px);min-height:320px;border:1px solid var(--line);overflow:hidden;touch-action:none;background:#1e1e22}
 .mapbox canvas{width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
+.mapbox #ptrCanvas{position:absolute;inset:0;pointer-events:none}
+.mapscale{position:absolute;left:10px;bottom:10px;white-space:nowrap;background:rgba(15,15,22,.82);color:#fff;padding:5px 8px 6px;font:600 11px var(--f-mono);display:grid;gap:3px;pointer-events:none}
+.mapscale i{display:block;height:6px;border:2px solid #fff;border-top:0}
 .mapzoom{position:absolute;right:8px;top:8px;display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
 .pick.tool b{font-size:13px}
 .pick.tool{display:flex;align-items:center;gap:6px;grid-auto-flow:column}
@@ -415,17 +423,19 @@ const FIREBASE_CONFIG = {
 const STATS=[["INT","Intelligence"],["REF","Reflexes"],["DEX","Dexterity"],["TECH","Technique"],["COOL","Cool"],["WILL","Willpower"],["LUCK","Luck"],["MOVE","Movement"],["BODY","Body"],["EMP","Empathy"]];
 const ROLES=["Solo","Netrunner","Tech","Medtech","Fixer","Nomad","Rockerboy","Media","Exec","Lawman"];
 const POINTS=62, SMIN=2, SMAX=8;
-const DICE=[4,6,8,10,12,20,100];
-const SKILLS=[["Perception","INT"],["Education","INT"],["Deduction","INT"],["Local Expert","INT"],["Science","INT"],["Tactics","INT"],["Tracking","INT"],["Criminology","INT"],["Cryptography","INT"],["Gamble","INT"],["Bureaucracy","INT"],
-["Handgun","REF"],["Shoulder Arms","REF"],["Heavy Weapons","REF"],["Autofire","REF"],["Archery","REF"],["Drive Land Vehicle","REF"],["Riding","REF"],["Pilot Air Vehicle","REF"],
-["Evasion","DEX"],["Brawling","DEX"],["Melee Weapon","DEX"],["Martial Arts","DEX"],["Athletics","DEX"],["Stealth","DEX"],["Contortionist","DEX"],["Pick Pocket","DEX"],
-["Basic Tech","TECH"],["Cybertech","TECH"],["Electronics/Security Tech","TECH"],["Weaponstech","TECH"],["Land Vehicle Tech","TECH"],["First Aid","TECH"],["Paramedic","TECH"],["Pick Lock","TECH"],["Forgery","TECH"],["Demolitions","TECH"],
-["Persuasion","COOL"],["Intimidation","COOL"],["Acting","COOL"],["Bribery","COOL"],["Streetwise","COOL"],["Interrogation","COOL"],["Trading","COOL"],["Wardrobe & Style","COOL"],
-["Concentration","WILL"],["Endurance","WILL"],["Resist Torture/Drugs","WILL"],
-["Human Perception","EMP"],["Conversation","EMP"],["Play Instrument","EMP"]];
+const DICE=[4,6,8,10,12,20,100],DICE_MAIN=[10,6],DICE_MORE=[4,8,12,20,100];
+const SKILLS=[["Perception","INT"],["Concentration","WILL"],["Conceal/Reveal Object","INT"],["Lip Reading","INT"],["Tracking","INT"],
+["Athletics","DEX"],["Contortionist","DEX"],["Dance","DEX"],["Endurance","WILL"],["Resist Torture/Drugs","WILL"],["Stealth","DEX"],
+["Drive Land Vehicle","REF"],["Pilot Air Vehicle","REF"],["Pilot Sea Vehicle","REF"],["Riding","REF"],
+["Accounting","INT"],["Animal Handling","INT"],["Bureaucracy","INT"],["Business","INT"],["Composition","INT"],["Criminology","INT"],["Cryptography","INT"],["Deduction","INT"],["Education","INT"],["Gamble","INT"],["Language","INT"],["Library Search","INT"],["Local Expert","INT"],["Science","INT"],["Tactics","INT"],["Wilderness Survival","INT"],
+["Brawling","DEX"],["Evasion","DEX"],["Martial Arts","DEX"],["Melee Weapon","DEX"],
+["Acting","COOL"],["Play Instrument","TECH"],
+["Archery","REF"],["Autofire","REF"],["Handgun","REF"],["Heavy Weapons","REF"],["Shoulder Arms","REF"],
+["Bribery","COOL"],["Conversation","EMP"],["Human Perception","EMP"],["Interrogation","COOL"],["Persuasion","COOL"],["Personal Grooming","COOL"],["Streetwise","COOL"],["Trading","COOL"],["Wardrobe & Style","COOL"],
+["Air Vehicle Tech","TECH"],["Basic Tech","TECH"],["Cybertech","TECH"],["Demolitions","TECH"],["Electronics/Security Tech","TECH"],["First Aid","TECH"],["Forgery","TECH"],["Land Vehicle Tech","TECH"],["Paint/Draw/Sculpt","TECH"],["Paramedic","TECH"],["Photography/Film","TECH"],["Pick Lock","TECH"],["Pick Pocket","TECH"],["Sea Vehicle Tech","TECH"],["Weaponstech","TECH"]];
 const WSKILLS=["Handgun","Shoulder Arms","Heavy Weapons","Autofire","Archery","Melee Weapon","Brawling","Martial Arts"];
 const ROLEDATA={
- Solo:{d:"Leibwächter, Söldner, Auftragskiller. Lebt für den Kampf.",ab:"Combat Awareness: Punkte auf Initiative, Gefahrensinn oder Präzision verteilen.",st:[5,8,7,4,7,6,5,6,8,6],sk:{"Handgun":6,"Shoulder Arms":6,"Evasion":6,"Melee Weapon":4,"Tactics":4,"Intimidation":4,"First Aid":2},w:[["Very Heavy Pistol","Handgun","4W6",1,8],["Assault Rifle","Shoulder Arms","5W6",1,25],["Combat Knife","Melee Weapon","1W6",2,0]],inv:[["Basic Ammo, spare mags",4,""],["Agent",1,""]]},
+ Solo:{d:"Leibwächter, Söldner, Auftragskiller. Lebt für den Kampf.",ab:"Combat Awareness: Punkte auf Initiative, Gefahrensinn oder Präzision verteilen.",st:[5,8,7,4,7,6,5,6,8,6],sk:{"Handgun":6,"Shoulder Arms":6,"Evasion":6,"Melee Weapon":4,"Tactics":4,"Interrogation":4,"First Aid":2},w:[["Very Heavy Pistol","Handgun","4W6",1,8],["Assault Rifle","Shoulder Arms","5W6",1,25],["Combat Knife","Melee Weapon","1W6",2,0]],inv:[["Basic Ammo, spare mags",4,""],["Agent",1,""]]},
  Netrunner:{d:"Hacker, der sich durch NET Architectures kämpft.",ab:"Interface: NET Architectures knacken, Programme starten, ICE bekämpfen.",st:[8,7,6,7,6,5,6,5,5,7],sk:{"Electronics/Security Tech":6,"Cryptography":4,"Education":4,"Basic Tech":4,"Concentration":4,"Handgun":4,"Evasion":4},w:[["Heavy Pistol","Handgun","3W6",2,8]],inv:[["Cyberdeck",1,"7 Programmplätze"],["Programs: Sword, Armor, Shield",1,""],["Virtuality Goggles",1,""]]},
  Tech:{d:"Bastler und Mechaniker. Repariert alles, baut den Rest.",ab:"Maker: Feldreparaturen, Verbesserungen und eigene Erfindungen.",st:[7,5,6,8,5,6,6,6,6,7],sk:{"Basic Tech":6,"Weaponstech":6,"Cybertech":4,"Electronics/Security Tech":4,"Land Vehicle Tech":4,"Science":4,"Shoulder Arms":4},w:[["Shotgun","Shoulder Arms","5W6",1,4]],inv:[["Tech Bag",1,"Werkzeug für Feldreparaturen"],["Flashlight",1,""],["Duct Tape",3,""]]},
  Medtech:{d:"Strassenarzt. Flickt die Crew mitten im Feuergefecht.",ab:"Medicine: Chirurgie, Pharmazeutika und Kryotechnik.",st:[7,6,6,8,5,6,5,5,6,8],sk:{"Paramedic":6,"First Aid":6,"Science":4,"Cybertech":4,"Human Perception":4,"Handgun":4,"Evasion":4},w:[["Heavy Pistol","Handgun","3W6",2,8]],inv:[["Medtech Bag",1,""],["Airhypo",1,""],["Wound Spray",3,"stoppt Blutungen"]]},
@@ -434,7 +444,7 @@ const ROLEDATA={
  Rockerboy:{d:"Musiker und Rebell. Die Stimme der Strasse.",ab:"Charismatic Impact: begeistert Fans und bewegt Massen.",st:[5,6,6,5,8,7,7,6,6,6],sk:{"Play Instrument":6,"Persuasion":6,"Wardrobe & Style":4,"Streetwise":4,"Human Perception":4,"Handgun":4,"Brawling":4},w:[["Very Heavy Pistol","Handgun","4W6",1,8]],inv:[["Instrument",1,""],["Portable Amp",1,""]]},
  Media:{d:"Journalist auf der Jagd nach der Wahrheit.",ab:"Credibility: Storys veröffentlichen, die etwas bewegen.",st:[8,5,6,5,7,6,7,6,5,7],sk:{"Conversation":6,"Deduction":6,"Perception":4,"Persuasion":4,"Human Perception":4,"Stealth":4,"Handgun":4},w:[["Heavy Pistol","Handgun","3W6",2,8]],inv:[["Video Camera",1,""],["Audio Recorder",1,""]]},
  Exec:{d:"Konzernmanager mit Geld, Macht und Feinden.",ab:"Teamwork: ein loyales Team, das für dich arbeitet.",st:[8,6,5,5,8,7,6,5,5,7],sk:{"Bureaucracy":6,"Persuasion":6,"Trading":4,"Human Perception":4,"Education":4,"Wardrobe & Style":4,"Handgun":4},w:[["Heavy Pistol","Handgun","3W6",2,8]],inv:[["Executive Suit",1,""],["Corporate ID",1,""]]},
- Lawman:{d:"Polizist, Kopfgeldjäger oder Konzern-Cop.",ab:"Backup: ruft Kollegen zu Hilfe.",st:[6,7,6,5,7,7,5,6,7,6],sk:{"Handgun":6,"Criminology":6,"Interrogation":4,"Tracking":4,"Shoulder Arms":4,"Evasion":4,"Intimidation":4},w:[["Very Heavy Pistol","Handgun","4W6",1,8],["Shotgun","Shoulder Arms","5W6",1,4]],inv:[["Badge",1,""],["Handcuffs",2,""]]}
+ Lawman:{d:"Polizist, Kopfgeldjäger oder Konzern-Cop.",ab:"Backup: ruft Kollegen zu Hilfe.",st:[6,7,6,5,7,7,5,6,7,6],sk:{"Handgun":6,"Criminology":6,"Interrogation":4,"Tracking":4,"Shoulder Arms":4,"Evasion":4,"Interrogation":4},w:[["Very Heavy Pistol","Handgun","4W6",1,8],["Shotgun","Shoulder Arms","5W6",1,4]],inv:[["Badge",1,""],["Handcuffs",2,""]]}
 };
 const ROLETIPS={"Solo":{gut:"Austeilen und einstecken. Hohe Reflexe, viel HP, die besten Waffen.",schwach:"Wenig Talent für Gespräche, Technik und Hacken. Ohne Kampf wird es schnell ruhig für dich.",aufgabe:"Beschützt die Crew, räumt Gegner aus dem Weg und hält die Stellung, wenn es kracht.",spiel:"Einfachster Einstieg: Ziel wählen, würfeln, Schaden machen. Gut für Leute, die Action mögen."},"Netrunner":{gut:"Öffnet Türen, schaltet Kameras und Geschütze ab, stiehlt Daten. Kann Kämpfe gewinnen, ohne einen Schuss abzugeben.",schwach:"Wenig HP und Armor. Wer dich im Netz erwischt, trifft auch dein Gehirn.",aufgabe:"Löst die Sicherheitssysteme eines Ziels und besorgt die Informationen, die die Crew braucht.",spiel:"Etwas mehr Regeln, aber sehr lohnend. Bleib in der Nähe der Crew, du musst nah ans Ziel."},"Tech":{gut:"Repariert Waffen, Armor und Fahrzeuge, baut Gadgets und verbessert Ausrüstung.",schwach:"Im direkten Kampf nur Mittelmass. Viel hängt davon ab, dass du Zeit und Material hast.",aufgabe:"Hält die Crew am Laufen und findet technische Auswege, wenn der Plan schiefgeht.",spiel:"Gut für Tüftler, die gern kreative Lösungen suchen. Frag den DM ruhig, was du alles bauen kannst."},"Medtech":{gut:"Heilt Verletzungen, stabilisiert Sterbende und kennt sich mit Drogen und Cyberware aus.",schwach:"Kein Kämpfer an der Front. Ohne dich ist die Crew nach dem ersten Feuergefecht am Ende.",aufgabe:"Hält alle am Leben, behandelt Critical Injury und bezahlt sich oft über Behandlungen.",spiel:"Für Spieler, die gern unterstützen. Bleib hinter Deckung und behalte die HP der anderen im Blick."},"Fixer":{gut:"Kennt Leute, besorgt Ausrüstung, Infos und Jobs. Verhandelt bessere Bezahlung heraus.",schwach:"Im Kampf eher schwach. Deine Stärke hängt von deinem Netzwerk und deinem Reputation ab.",aufgabe:"Bringt die Aufträge rein, organisiert, was fehlt, und redet die Crew aus Ärger heraus.",spiel:"Ideal für Leute, die gern reden und Fäden ziehen. Merk dir Namen, sie zahlen sich aus."},"Nomad":{gut:"Bester Fahrer der Crew, zäh und vielseitig. Hat einen Clan im Rücken.",schwach:"Ausserhalb von Fahrzeugen kein Spezialist. In Konzerntürmen fällst du auf.",aufgabe:"Fährt die Crew rein und vor allem wieder raus, schmuggelt Ware und kennt die Badlands.",spiel:"Ausgeglichen und robust, gut für Einsteiger. Verfolgungsjagden gehören dir."},"Rockerboy":{gut:"Charisma ohne Ende. Begeistert Menschen, sammelt Fans und öffnet Türen über Ruhm.",schwach:"Wenig Kampf- und Technikkönnen. Ohne Publikum verpufft vieles.",aufgabe:"Gesicht der Crew, Ablenkung, Anführer einer Menge und Stimme gegen die Konzerne.",spiel:"Für Spieler, die gern Roles spielen und auftreten. Deine Szenen leben von deinem Auftritt."},"Media":{gut:"Findet die Wahrheit, gräbt Geheimnisse aus und kann Konzerne mit einer Story zu Fall bringen.",schwach:"Wenig Kampfkraft. Deine Gegner sind mächtig und mögen keine Fragen.",aufgabe:"Recherchiert vor dem Job, befragt Zeugen und deckt auf, wer wirklich dahintersteckt.",spiel:"Gut für neugierige Spieler, die Rätsel mögen. Stell viele Fragen, der DM belohnt das."},"Exec":{gut:"Geld, Einfluss und ein eigenes Team aus Angestellten. Zugang zu Konzernkreisen.",schwach:"Konzernpolitik und Feinde von oben. Im Strassenkampf bist du verwundbar.",aufgabe:"Finanziert Aktionen, öffnet Konzerntüren und stellt Leute für die Crew bereit.",spiel:"Für Spieler, die gern planen und Ressourcen verwalten. Behalte deine Vorgesetzten im Auge."},"Lawman":{gut:"Autorität, Waffen und Verstärkung auf Abruf. Solide im Kampf und beim Ermitteln.",schwach:"Regeln und Vorgesetzte. Nicht jeder in der Crew mag einen Cop an seiner Seite.",aufgabe:"Ermittelt, verhaftet und ruft Hilfe, wenn die Lage kippt.",spiel:"Robuster Einstieg mit klaren Aufgaben. Interessant, wenn die Crew auf der anderen Seite des Gesetzes steht."}};
 const GIG={
@@ -456,7 +466,6 @@ function gigPanel(){
 }
 const CATS=[["W","Waffen"],["A","Armor"],["C","Cyberware"],["G","Ausrüstung"],["D","Medizin & Drogen"],["P","Programme"]];
 const CATALOG=[
- ["W","Light Pistol",50,{skill:"Handgun",dmg:"1W6",rof:2,mag:8},"Klein und leicht zu verstecken."],
  ["W","Medium Pistol",50,{skill:"Handgun",dmg:"2W6",rof:2,mag:12},"Solide Standardwaffe."],
  ["W","Heavy Pistol",100,{skill:"Handgun",dmg:"3W6",rof:2,mag:8},"Beliebt auf der Strasse."],
  ["W","Very Heavy Pistol",100,{skill:"Handgun",dmg:"4W6",rof:1,mag:8},"Handkanone. Nur ein Schuss pro Zug."],
@@ -472,7 +481,7 @@ const CATALOG=[
  ["W","Machete",50,{skill:"Melee Weapon",dmg:"2W6",rof:2,mag:0},"Mittlere Nahkampfwaffe."],
  ["W","Katana",100,{skill:"Melee Weapon",dmg:"3W6",rof:2,mag:0},"Schwere Nahkampfwaffe."],
  ["W","Sledgehammer",100,{skill:"Melee Weapon",dmg:"4W6",rof:1,mag:0},"Sehr schwere Nahkampfwaffe."],
- ["W","Monoblade",500,{skill:"Melee Weapon",dmg:"3W6",rof:2,mag:0},"Schneidet durch Armor."],
+ ["W","Mantis Blades",500,{skill:"Melee Weapon",dmg:"3W6",rof:2,mag:0},"Klingen im Cyberarm, zählt als schwere Nahkampfwaffe."],
  ["A","Leathers",20,{sp:4,zone:"body"},"Besser als nichts."],
  ["A","Kevlar",50,{sp:7,zone:"body"},"Unter Kleidung tragbar."],
  ["A","Light Armorjack",100,{sp:11,zone:"body"},"Standard für Söldner."],
@@ -605,7 +614,7 @@ const FOES=[
  {k:"enforcer",n:"Gang Enforcer",tier:"Lieutenant",ref:7,dex:6,hp:45,sp:11,w:"Very Heavy Pistol",dmg:"4W6",atk:13,dodge:0,pts:2,tip:"Hält die Gruppe zusammen. Fällt er, ergibt sich das Mook oft."},
  {k:"runner",n:"Hostile Netrunner",tier:"Lieutenant",ref:6,dex:5,hp:30,sp:7,w:"Heavy Pistol",dmg:"3W6",atk:10,dodge:0,pts:2,tip:"Versteckt sich hinter den anderen und greift Kameras, Türen und Cyberware an."},
  {k:"solo",n:"Corpo Solo",tier:"Mini-Boss",ref:8,dex:7,hp:50,sp:12,w:"Assault Rifle",dmg:"5W6",atk:15,dodge:13,pts:4,tip:"Weicht Kugeln aus. Mit Überzahl, Fallen oder Nahkampf knacken."},
- {k:"psycho",n:"Cyberpsycho",tier:"Boss",ref:8,dex:8,hp:70,sp:13,w:"Monoblade",dmg:"3W6",atk:16,dodge:14,pts:7,tip:"Ein Kampf für die ganze Crew. Umgebung, Ablenkung und Fluchtwege einplanen."},
+ {k:"psycho",n:"Cyberpsycho",tier:"Boss",ref:8,dex:8,hp:70,sp:13,w:"Mantis Blades",dmg:"3W6",atk:16,dodge:14,pts:7,tip:"Ein Kampf für die ganze Crew. Umgebung, Ablenkung und Fluchtwege einplanen."},
  {k:"elite",n:"Elite Strike Team",tier:"Boss",ref:8,dex:7,hp:55,sp:13,w:"Assault Rifle",dmg:"5W6",atk:16,dodge:13,pts:6,tip:"Kommt nie allein. Eher ein Grund zur Flucht als ein Gegner zum Besiegen."}];
 const POWER=[["-1","Schwächer"],["0","Normal"],["1","Stärker"]];
 let foe={k:"booster",power:0,count:3,name:""},enc=[];
@@ -659,11 +668,11 @@ function write(path,fn){
   }).catch(e=>toast(errMsg(e)));
   return chains[path];
 }
-const NAME_MIG={"Wahrnehmung": "Perception", "Bildung": "Education", "Deduktion": "Deduction", "Ortskenntnis": "Local Expert", "Wissenschaft": "Science", "Taktik": "Tactics", "Verfolgen": "Tracking", "Kriminologie": "Criminology", "Kryptografie": "Cryptography", "Glücksspiel": "Gamble", "Bürokratie": "Bureaucracy", "Handfeuerwaffen": "Handgun", "Schulterwaffen": "Shoulder Arms", "Schwere Waffen": "Heavy Weapons", "Automatikfeuer": "Autofire", "Bogenschiessen": "Archery", "Fahrzeug fahren": "Drive Land Vehicle", "Motorrad": "Riding", "Pilot": "Pilot Air Vehicle", "Ausweichen": "Evasion", "Faustkampf": "Brawling", "Nahkampfwaffen": "Melee Weapon", "Kampfsport": "Martial Arts", "Athletik": "Athletics", "Schleichen": "Stealth", "Akrobatik": "Contortionist", "Taschendiebstahl": "Pick Pocket", "Grundtechnik": "Basic Tech", "Cybertechnik": "Cybertech", "Elektronik & Sicherheit": "Electronics/Security Tech", "Waffentechnik": "Weaponstech", "Fahrzeugtechnik": "Land Vehicle Tech", "Erste Hilfe": "First Aid", "Paramedizin": "Paramedic", "Schlösser knacken": "Pick Lock", "Fälschen": "Forgery", "Sprengstoffe": "Demolitions", "Überzeugen": "Persuasion", "Einschüchtern": "Intimidation", "Schauspielern": "Acting", "Bestechung": "Bribery", "Gassenwissen": "Streetwise", "Verhör": "Interrogation", "Handeln": "Trading", "Stil & Kleidung": "Wardrobe & Style", "Konzentration": "Concentration", "Ausdauer": "Endurance", "Folter & Drogen widerstehen": "Resist Torture/Drugs", "Menschenkenntnis": "Human Perception", "Gesprächsführung": "Conversation", "Unterhaltung": "Play Instrument", "Sehr schwere Pistole": "Very Heavy Pistol", "Leichte Pistole": "Light Pistol", "Mittlere Pistole": "Medium Pistol", "Schwere Pistole": "Heavy Pistol", "Schwere Maschinenpistole": "Heavy SMG", "Maschinenpistole": "SMG", "Schrotflinte": "Shotgun", "Sturmgewehr": "Assault Rifle", "Scharfschützengewehr": "Sniper Rifle", "Bogen": "Bow", "Granatwerfer": "Grenade Launcher", "Raketenwerfer": "Rocket Launcher", "Kampfmesser": "Combat Knife", "Machete": "Machete", "Katana": "Katana", "Vorschlaghammer": "Sledgehammer", "Monoklinge": "Monoblade", "Lederkleidung": "Leathers", "Kevlar-Weste": "Kevlar", "Leichte Panzerung": "Light Armorjack", "Bodyweight-Anzug": "Bodyweight Suit", "Mittlere Panzerung": "Medium Armorjack", "Schwere Panzerung": "Heavy Armorjack", "Metallgear": "Metalgear", "Helm": "Helmet", "Gesichtsplatte": "Faceplate", "Neuralverbindung": "Neural Link", "Interface-Plugs": "Interface Plugs", "Chipbuchse": "Chipware Socket", "Reflexbeschleuniger": "Kerenzikov", "Schmerz-Editor": "Pain Editor", "Braindance-Rekorder": "Braindance Recorder", "Cyberauge": "Cybereye", "Bildverstärker": "Low Light/Infrared/UV", "Wärmebild": "Thermal Imaging", "Zielerfassung": "TargetingScope", "Mikro-Optik": "MicroOptics", "Tele-Optik": "TeleOptics", "Anti-Blendschutz": "Anti-Dazzle", "Bild-Aufzeichnung": "Image Recorder", "Farbwechsel-Iris": "Color Shift", "Cyberaudio-Suite": "Cyberaudio Suite", "Verstärktes Gehör": "Amplified Hearing", "Interner Agent": "Internal Agent", "Funk-Scanner": "Radio Scanner", "Stimmen-Stressanalyse": "Voice Stress Analyzer", "Lärmschutz": "Level Damper", "Ausfahrbare Klinge": "Popup Blade", "Versteckte Pistole": "Popup Pistol", "Werkzeughand": "Tool Hand", "Greifhaken": "Grapple Hand", "Gorilla-Fäuste": "Gorilla Arms", "Cyberbein": "Cyberleg", "Sprungverstärker": "Jump Booster", "Haftsohlen": "Grip Foot", "Versteckfach": "Hidden Compartment", "Krallenfüsse": "Talon Foot", "Toxinbinder": "Toxin Binders", "Nasenfilter": "Nasal Filters", "Sauerstoffreserve": "Independent Air Supply", "Subdermale Panzerung": "Subdermal Armor", "Muskel- und Knochenlace": "Muscle and Bone Lace", "Subdermale Tasche": "Subdermal Pocket", "Leuchttätowierung": "Light Tattoo", "Chemhaut": "Chemskin", "Lichtfaser-Haare": "Techhair", "Hautuhr": "Skinwatch", "Agent (Smartphone)": "Agent", "Wegwerf-Handy": "Disposable Cell Phone", "Taschenlampe": "Flashlight", "Seil, 30 m": "Rope (30 m)", "Gasmaske": "Gas Mask", "Fernglas": "Binoculars", "Handschellen": "Handcuffs", "Nachtsichtbrille": "Night Vision Goggles", "Techtasche": "Tech Bag", "Medtech-Tasche": "Medtech Bag", "Rauchgranate": "Smoke Grenade", "Splittergranate": "Frag Grenade", "Blendgranate": "Flashbang", "Gefälschte ID": "Fake ID", "Verschlüsselter Datenchip": "Encrypted Data Chip", "Trauma-Team-Abo (Silber)": "Trauma Team Silver", "Wundspray": "Wound Spray", "Schnellheiler": "Speedheal", "Stimulans": "Boost", "Kampfdroge": "Black Lace", "Gegengift": "Antidote", "Programm: Schwert": "Program: Sword", "Programm: Panzer": "Program: Armor", "Programm: Schild": "Program: Shield", "Programm: Blitz": "Program: Hellbolt", "Programm: Augenblick": "Program: See Ya", "Munition, Ersatzmagazine": "Basic Ammo, spare mags", "Programme: Schwert, Panzer, Schild": "Programs: Sword, Armor, Shield", "Interface-Visier": "Virtuality Goggles", "Panzerband": "Duct Tape", "Feldrationen": "Kibble Packs", "Geländewagen": "Off-road Vehicle", "Tragbarer Verstärker": "Portable Amp", "Kamera": "Video Camera", "Audio-Rekorder": "Audio Recorder", "Massanzug": "Executive Suit", "Konzern-Ausweis": "Corporate ID", "Dienstmarke": "Badge", "Billige Sonnenbrille": "Cheap Shades", "Zigaretten und Feuerzeug": "Cigarettes & Lighter", "Gang-Erkennungszeichen": "Gang Colors", "Zerkratzter Agent": "Scratched Agent", "Datenchip mit Zugangscodes": "Data Chip (access codes)", "Prototyp in Schutzkoffer": "Prototype (sealed case)", "Verschlüsselte Festplatte": "Encrypted Drive", "Schlüsselkarte, Sicherheitsstufe 3": "Keycard, Security Level 3", "Akte über den Auftraggeber": "File on the Client", "Schwarzmarkt-Ware (Wert 500 €$)": "Black Market Goods (500 €$)", "Datenchip mit Mitarbeiterdaten": "Data Chip (employee records)", "Teure Uhr (Wert 200 €$)": "Luxury Watch (200 €$)", "Flasche echter Whisky": "Bottle of Real Whiskey", "Interne Memos": "Internal Memos", "Schlüsselkarte fürs Parkhaus": "Parking Garage Keycard", "Kiste Munition": "Crate of Ammo", "Tüte mit Drogen (Wert 100 €$)": "Bag of Drugs (100 €$)", "Gestohlene Ware (Wert 200 €$)": "Stolen Goods (200 €$)", "Liste mit Schuldnern": "Debtor List", "Schlüssel zu einem Motorrad": "Motorcycle Key", "Gang-Jacke": "Gang Jacket", "Booster-Ganger": "Booster Ganger", "Gang-Schläger": "Gang Bruiser", "Konzern-Wachmann": "Corpo Security", "Gang-Vollstrecker": "Gang Enforcer", "Feindlicher Netrunner": "Hostile Netrunner", "Konzern-Solo": "Corpo Solo", "Elite-Eingreiftrupp": "Elite Strike Team", "Techie": "Tech", "Medien": "Media"};
+const NAME_MIG={"Intimidation":"Interrogation","Monoblade":"Mantis Blades","Wahrnehmung": "Perception", "Bildung": "Education", "Deduktion": "Deduction", "Ortskenntnis": "Local Expert", "Wissenschaft": "Science", "Taktik": "Tactics", "Verfolgen": "Tracking", "Kriminologie": "Criminology", "Kryptografie": "Cryptography", "Glücksspiel": "Gamble", "Bürokratie": "Bureaucracy", "Handfeuerwaffen": "Handgun", "Schulterwaffen": "Shoulder Arms", "Schwere Waffen": "Heavy Weapons", "Automatikfeuer": "Autofire", "Bogenschiessen": "Archery", "Fahrzeug fahren": "Drive Land Vehicle", "Motorrad": "Riding", "Pilot": "Pilot Air Vehicle", "Ausweichen": "Evasion", "Faustkampf": "Brawling", "Nahkampfwaffen": "Melee Weapon", "Kampfsport": "Martial Arts", "Athletik": "Athletics", "Schleichen": "Stealth", "Akrobatik": "Contortionist", "Taschendiebstahl": "Pick Pocket", "Grundtechnik": "Basic Tech", "Cybertechnik": "Cybertech", "Elektronik & Sicherheit": "Electronics/Security Tech", "Waffentechnik": "Weaponstech", "Fahrzeugtechnik": "Land Vehicle Tech", "Erste Hilfe": "First Aid", "Paramedizin": "Paramedic", "Schlösser knacken": "Pick Lock", "Fälschen": "Forgery", "Sprengstoffe": "Demolitions", "Überzeugen": "Persuasion", "Einschüchtern": "Intimidation", "Schauspielern": "Acting", "Bestechung": "Bribery", "Gassenwissen": "Streetwise", "Verhör": "Interrogation", "Handeln": "Trading", "Stil & Kleidung": "Wardrobe & Style", "Konzentration": "Concentration", "Ausdauer": "Endurance", "Folter & Drogen widerstehen": "Resist Torture/Drugs", "Menschenkenntnis": "Human Perception", "Gesprächsführung": "Conversation", "Unterhaltung": "Play Instrument", "Sehr schwere Pistole": "Very Heavy Pistol", "Leichte Pistole": "Light Pistol", "Mittlere Pistole": "Medium Pistol", "Schwere Pistole": "Heavy Pistol", "Schwere Maschinenpistole": "Heavy SMG", "Maschinenpistole": "SMG", "Schrotflinte": "Shotgun", "Sturmgewehr": "Assault Rifle", "Scharfschützengewehr": "Sniper Rifle", "Bogen": "Bow", "Granatwerfer": "Grenade Launcher", "Raketenwerfer": "Rocket Launcher", "Kampfmesser": "Combat Knife", "Machete": "Machete", "Katana": "Katana", "Vorschlaghammer": "Sledgehammer", "Monoklinge": "Monoblade", "Lederkleidung": "Leathers", "Kevlar-Weste": "Kevlar", "Leichte Panzerung": "Light Armorjack", "Bodyweight-Anzug": "Bodyweight Suit", "Mittlere Panzerung": "Medium Armorjack", "Schwere Panzerung": "Heavy Armorjack", "Metallgear": "Metalgear", "Helm": "Helmet", "Gesichtsplatte": "Faceplate", "Neuralverbindung": "Neural Link", "Interface-Plugs": "Interface Plugs", "Chipbuchse": "Chipware Socket", "Reflexbeschleuniger": "Kerenzikov", "Schmerz-Editor": "Pain Editor", "Braindance-Rekorder": "Braindance Recorder", "Cyberauge": "Cybereye", "Bildverstärker": "Low Light/Infrared/UV", "Wärmebild": "Thermal Imaging", "Zielerfassung": "TargetingScope", "Mikro-Optik": "MicroOptics", "Tele-Optik": "TeleOptics", "Anti-Blendschutz": "Anti-Dazzle", "Bild-Aufzeichnung": "Image Recorder", "Farbwechsel-Iris": "Color Shift", "Cyberaudio-Suite": "Cyberaudio Suite", "Verstärktes Gehör": "Amplified Hearing", "Interner Agent": "Internal Agent", "Funk-Scanner": "Radio Scanner", "Stimmen-Stressanalyse": "Voice Stress Analyzer", "Lärmschutz": "Level Damper", "Ausfahrbare Klinge": "Popup Blade", "Versteckte Pistole": "Popup Pistol", "Werkzeughand": "Tool Hand", "Greifhaken": "Grapple Hand", "Gorilla-Fäuste": "Gorilla Arms", "Cyberbein": "Cyberleg", "Sprungverstärker": "Jump Booster", "Haftsohlen": "Grip Foot", "Versteckfach": "Hidden Compartment", "Krallenfüsse": "Talon Foot", "Toxinbinder": "Toxin Binders", "Nasenfilter": "Nasal Filters", "Sauerstoffreserve": "Independent Air Supply", "Subdermale Panzerung": "Subdermal Armor", "Muskel- und Knochenlace": "Muscle and Bone Lace", "Subdermale Tasche": "Subdermal Pocket", "Leuchttätowierung": "Light Tattoo", "Chemhaut": "Chemskin", "Lichtfaser-Haare": "Techhair", "Hautuhr": "Skinwatch", "Agent (Smartphone)": "Agent", "Wegwerf-Handy": "Disposable Cell Phone", "Taschenlampe": "Flashlight", "Seil, 30 m": "Rope (30 m)", "Gasmaske": "Gas Mask", "Fernglas": "Binoculars", "Handschellen": "Handcuffs", "Nachtsichtbrille": "Night Vision Goggles", "Techtasche": "Tech Bag", "Medtech-Tasche": "Medtech Bag", "Rauchgranate": "Smoke Grenade", "Splittergranate": "Frag Grenade", "Blendgranate": "Flashbang", "Gefälschte ID": "Fake ID", "Verschlüsselter Datenchip": "Encrypted Data Chip", "Trauma-Team-Abo (Silber)": "Trauma Team Silver", "Wundspray": "Wound Spray", "Schnellheiler": "Speedheal", "Stimulans": "Boost", "Kampfdroge": "Black Lace", "Gegengift": "Antidote", "Programm: Schwert": "Program: Sword", "Programm: Panzer": "Program: Armor", "Programm: Schild": "Program: Shield", "Programm: Blitz": "Program: Hellbolt", "Programm: Augenblick": "Program: See Ya", "Munition, Ersatzmagazine": "Basic Ammo, spare mags", "Programme: Schwert, Panzer, Schild": "Programs: Sword, Armor, Shield", "Interface-Visier": "Virtuality Goggles", "Panzerband": "Duct Tape", "Feldrationen": "Kibble Packs", "Geländewagen": "Off-road Vehicle", "Tragbarer Verstärker": "Portable Amp", "Kamera": "Video Camera", "Audio-Rekorder": "Audio Recorder", "Massanzug": "Executive Suit", "Konzern-Ausweis": "Corporate ID", "Dienstmarke": "Badge", "Billige Sonnenbrille": "Cheap Shades", "Zigaretten und Feuerzeug": "Cigarettes & Lighter", "Gang-Erkennungszeichen": "Gang Colors", "Zerkratzter Agent": "Scratched Agent", "Datenchip mit Zugangscodes": "Data Chip (access codes)", "Prototyp in Schutzkoffer": "Prototype (sealed case)", "Verschlüsselte Festplatte": "Encrypted Drive", "Schlüsselkarte, Sicherheitsstufe 3": "Keycard, Security Level 3", "Akte über den Auftraggeber": "File on the Client", "Schwarzmarkt-Ware (Wert 500 €$)": "Black Market Goods (500 €$)", "Datenchip mit Mitarbeiterdaten": "Data Chip (employee records)", "Teure Uhr (Wert 200 €$)": "Luxury Watch (200 €$)", "Flasche echter Whisky": "Bottle of Real Whiskey", "Interne Memos": "Internal Memos", "Schlüsselkarte fürs Parkhaus": "Parking Garage Keycard", "Kiste Munition": "Crate of Ammo", "Tüte mit Drogen (Wert 100 €$)": "Bag of Drugs (100 €$)", "Gestohlene Ware (Wert 200 €$)": "Stolen Goods (200 €$)", "Liste mit Schuldnern": "Debtor List", "Schlüssel zu einem Motorrad": "Motorcycle Key", "Gang-Jacke": "Gang Jacket", "Booster-Ganger": "Booster Ganger", "Gang-Schläger": "Gang Bruiser", "Konzern-Wachmann": "Corpo Security", "Gang-Vollstrecker": "Gang Enforcer", "Feindlicher Netrunner": "Hostile Netrunner", "Konzern-Solo": "Corpo Solo", "Elite-Eingreiftrupp": "Elite Strike Team", "Techie": "Tech", "Medien": "Media"};
 const ROLE_MIG={"Techie":"Tech","Medien":"Media"};
-function migName(n){return NAME_MIG[n]||n}
+function migName(n){let k=n;for(let i=0;i<3&&NAME_MIG[k];i++)k=NAME_MIG[k];return k}
 function normalizeChar(c){
-  if(!c||c._mig===2)return c;
+  if(!c||c._mig===3)return c;
   if(ROLE_MIG[c.role])c.role=ROLE_MIG[c.role];
   if(c.skills){const n={};for(const [k,v] of Object.entries(c.skills))n[migName(k)]=Math.max(n[migName(k)]||0,v);c.skills=n}
   if(c.pins)c.pins=c.pins.map(migName);
@@ -671,7 +680,7 @@ function normalizeChar(c){
   (c.cyber||[]).forEach(x=>{x.name=migName(x.name)});
   (c.inventory||[]).forEach(x=>{x.name=migName(x.name);if(x.entry){x.entry.name=migName(x.entry.name);if(x.entry.skill)x.entry.skill=migName(x.entry.skill)}});
   if(c.armor)for(const z of ["head","body"])if(c.armor[z]&&c.armor[z].name)c.armor[z].name=migName(c.armor[z].name);
-  c._mig=2;return c;
+  c._mig=3;return c;
 }
 const editChar=(id,fn)=>!id?Promise.resolve():write("chars/"+id,c=>{if(!c)return null;normalizeChar(c);fn(c);c.updatedAt=Date.now();return c});
 
@@ -747,12 +756,57 @@ function sfxWatch(){
 
 /* ---------- Live-Sync ---------- */
 let rq=false;function renderSoon(){if(rq)return;rq=true;requestAnimationFrame(()=>{rq=false;render()})}
-let live=null,peersDrag={},liveT=0,livePend=null;
-function liveSend(d){
-  if(live){live.presence({drag:d||null}).catch(()=>{});return}
-  if(db&&db.liveDoc){livePend=d;const now=Date.now();clearTimeout(liveSend.t);
-    if(d===null||now-liveT>110){liveT=now;db.liveDoc(d).catch(()=>{})}else liveSend.t=setTimeout(()=>{liveT=Date.now();db.liveDoc(livePend).catch(()=>{})},110)}
+let live=null,peersDrag={},liveT=0,liveState={drag:null,ptr:null};
+function liveFlush(force){
+  const gap=live?50:130,now=Date.now();clearTimeout(liveFlush.t);
+  const go=()=>{liveT=Date.now();const st={drag:liveState.drag,ptr:liveState.ptr};if(live)live.presence(st).catch(()=>{});else if(db&&db.liveDoc)db.liveDoc(st).catch(()=>{})};
+  if(force||now-liveT>gap)go();else liveFlush.t=setTimeout(go,gap-(now-liveT));
 }
+function liveSend(d){liveState.drag=d||null;liveFlush(d===null)}
+function ptrSend(q){liveState.ptr=q||null;liveFlush(q===null)}
+
+/* --- Zeiger: rechte Maustaste halten (Touch: lange drücken) --- */
+const PTR_KEY=Math.random().toString(36).slice(2,8),PTR_COLS=["#ff4fd8","#3ef0ff","#f5e400","#7dff6a","#ff8a3d","#b48cff"];
+let ptrTrails={},ptrRaf=0,ptrBeat=0;
+function ptrColor(id){let h=7;for(const ch of String(id))h=(h*31+ch.charCodeAt(0))|0;return PTR_COLS[Math.abs(h)%PTR_COLS.length]}
+function ptrLabel(){if(isDM())return "DM";const c=myChar();return c?(c.handle||c.name):(typeof myName!=="undefined"&&myName)||"Spieler"}
+function ptrFeed(k,q){const now=Date.now();let tr=ptrTrails[k];if(!tr||!tr.live)tr=ptrTrails[k]={pts:[],live:true};tr.info=q;tr.live=true;const l=tr.pts[tr.pts.length-1];if(!l||l.x!==q.x||l.y!==q.y)tr.pts.push({x:q.x,y:q.y,t:now});ptrKick()}
+function ptrEnd(k){const tr=ptrTrails[k];if(tr&&tr.live){tr.live=false;tr.endAt=Date.now();ptrKick()}}
+function ptrPeers(np){Object.entries(np).forEach(([k,q])=>ptrFeed(k,q));Object.keys(ptrTrails).forEach(k=>{if(k!=="me"&&!np[k])ptrEnd(k)})}
+function ptrKick(){if(!ptrRaf)ptrRaf=requestAnimationFrame(ptrTick)}
+function ptrTick(){ptrRaf=0;const now=Date.now();let any=false;
+  Object.entries(ptrTrails).forEach(([k,tr])=>{const last=tr.pts[tr.pts.length-1];tr.pts=tr.pts.filter(p=>now-p.t<450);if(!tr.pts.length&&last&&tr.live)tr.pts=[{...last,t:now}];if(!tr.live&&now-tr.endAt>700)delete ptrTrails[k];else any=true});
+  drawPointers();if(any)ptrRaf=requestAnimationFrame(ptrTick)}
+const SCALES=[[2,"Taktisch","Kampf und Erkundung, Regelbuch-Standard"],[10,"Viertel","Strassenzüge, Gebäudeblöcke"],[100,"Stadt","ganze Stadt, Bezirke"]];
+function mapScale(id){const d=maps[id];return d&&d.scale?d.scale:2}
+function scaleBar(){const el=$("#mapScale"),m=curMap();if(!el)return;if(!m){el.hidden=true;return}
+  const s=mapScale(m.id),cs=28*mapView.zoom;let n=1;for(const k of [1,2,5,10,20,50,100]){n=k;if(k*cs>=70)break}
+  el.hidden=false;const nm=(SCALES.find(x=>x[0]===s)||[0,""])[1],dist=v=>v>=1000?(v/1000).toLocaleString("de-CH")+" km":v+" m";el.innerHTML=`<span>${nm?nm+" · ":""}1 Feld = ${dist(s)} · ${n} ${n===1?"Feld":"Felder"} = ${dist(n*s)}</span><i style="width:${Math.round(n*cs)}px"></i>`}
+function dragDistance(x,ox,oy,cs){if(!(mact&&mact.kind==="tok"&&mact.moved))return;const m=curMap();if(!m)return;
+  const tx=Math.floor((mact.px-ox)/cs),ty=Math.floor((mact.py-oy)/cs),n=Math.max(Math.abs(tx-mact.cx),Math.abs(ty-mact.cy));if(!n)return;
+  const s=mapScale(m.id),dd=n*s,txt=`${n} ${n===1?"Feld":"Felder"} · ${dd>=1000?(dd/1000).toLocaleString("de-CH")+" km":dd+" m"}`;
+  x.save();x.setLineDash([6,5]);x.strokeStyle="rgba(255,255,255,.85)";x.lineWidth=2;x.beginPath();x.moveTo(ox+(mact.cx+.5)*cs,oy+(mact.cy+.5)*cs);x.lineTo(mact.px,mact.py);x.stroke();x.setLineDash([]);
+  x.font='700 13px "IBM Plex Sans",Arial,sans-serif';x.textBaseline="middle";const tw=x.measureText(txt).width,bx=mact.px+18,by=mact.py-22;
+  x.fillStyle="rgba(15,15,22,.9)";x.fillRect(bx,by-11,tw+14,22);x.fillStyle="#f5e400";x.fillRect(bx,by-11,3,22);x.fillStyle="#fff";x.fillText(txt,bx+8,by+1);x.restore()}
+function drawPointers(){
+  const cv=$("#ptrCanvas"),m=curMap();if(!cv)return;const dpr=Math.min(window.devicePixelRatio||1,2),W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
+  const x=cv.getContext("2d");x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,W,H);if(!m)return;
+  const cs=28*mapView.zoom,ox=mapView.ox,oy=mapView.oy,now=Date.now();
+  scaleBar();dragDistance(x,ox,oy,cs);
+  Object.values(ptrTrails).forEach(tr=>{const q=tr.info;if(!q||q.map!==m.id||(q.z||0)!==(m.z||0)||!tr.pts.length)return;
+    const a=tr.live?1:Math.max(0,1-(now-tr.endAt)/700),col=q.c||"#ff4fd8",P=tr.pts.map(p=>[ox+p.x*cs,oy+p.y*cs]);
+    x.save();x.globalAlpha=a;x.lineCap="round";x.lineJoin="round";x.shadowColor=col;x.shadowBlur=12;
+    for(let i=1;i<P.length;i++){const f=i/P.length;x.strokeStyle=col;x.globalAlpha=a*f*.85;x.lineWidth=2+f*5;x.beginPath();x.moveTo(P[i-1][0],P[i-1][1]);x.lineTo(P[i][0],P[i][1]);x.stroke()}
+    const [hx,hy]=P[P.length-1],r=Math.max(6,Math.min(14,cs*.22)),pulse=1+.25*Math.sin(now/120);
+    x.globalAlpha=a*.35;x.fillStyle=col;x.beginPath();x.arc(hx,hy,r*2.1*pulse,0,7);x.fill();
+    x.globalAlpha=a;x.beginPath();x.arc(hx,hy,r,0,7);x.fill();x.shadowBlur=0;x.lineWidth=2;x.strokeStyle="#fff";x.stroke();
+    x.font='700 12px "IBM Plex Sans",Arial,sans-serif';x.textBaseline="middle";const tw=x.measureText(q.n||"").width,bx=Math.min(hx+r+6,W-tw-14),by=hy-r-10;
+    x.fillStyle="rgba(15,15,22,.85)";x.fillRect(bx,by-9,tw+12,18);x.fillStyle=col;x.fillRect(bx,by-9,3,18);x.fillStyle="#fff";x.fillText(q.n||"",bx+7,by+1);
+    x.restore()});
+}
+function ptrAt(e){const m=curMap();if(!m)return null;const r=$("#mapCanvas").getBoundingClientRect(),cs=28*mapView.zoom;return{k:me+":"+PTR_KEY,map:m.id,z:m.z||0,x:(e.clientX-r.left-mapView.ox)/cs,y:(e.clientY-r.top-mapView.oy)/cs,n:ptrLabel(),c:ptrColor(me)}}
+function ptrStart(e){const q=ptrAt(e);if(!q)return;mact={kind:"ptr"};ptrFeed("me",q);ptrSend(q);clearInterval(ptrBeat);ptrBeat=setInterval(()=>{if(liveState.ptr)liveFlush(true)},1500)}
 /* ---------- Boot ---------- */
 const ls=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){return null}};
 const ALPHA="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -791,13 +845,13 @@ function enterRoom(){
   try{history.replaceState(null,"",location.pathname+"?raum="+encodeURIComponent(room))}catch(e){}
   const base="rooms/"+room+"/";
   db={doc:p=>fs.doc(base+p),collection:p=>fs.collection(base+p),
-    liveDoc:d=>fs.doc(base+"live/"+me).set({drag:d||null,at:Date.now()}),
+    liveDoc:st=>fs.doc(base+"live/"+me).set({drag:(st&&st.drag)||null,ptr:(st&&st.ptr)||null,at:Date.now()}),
     claimLoot:(id,name)=>fs.runTransaction(async t=>{const r=fs.doc(base+"loot/"+id);const s=await t.get(r);if(!s.exists||s.data().taken)return false;t.update(r,{taken:me,takenName:name});return true})};
   mode="online";
   db.doc("players/"+me).set({name:myName,at:Date.now()}).catch(e=>toast(errMsg(e)));
   const t=setTimeout(()=>{if(mode==="online"&&!Object.keys(chars).length)toast("Die Spieldaten antworten noch nicht. Prüfe deine Verbindung.")},10000);
   db.collection("players").onSnapshot(s=>{players={};s.docs.forEach(d=>players[d.id]=d.data());names=Object.fromEntries(Object.entries(players).map(([k,v])=>[k,v.name||""]));renderSoon()},e=>toast(errMsg(e)));
-  db.collection("live").onSnapshot(s=>{const nd={},now=Date.now();s.docs.forEach(d=>{const v=d.data();if(d.id!==me&&v.drag&&v.drag.id&&now-(v.at||0)<8000)nd[v.drag.id]=v.drag});peersDrag=nd;drawMap()},()=>{});
+  db.collection("live").onSnapshot(s=>{const nd={},np={},now=Date.now();s.docs.forEach(d=>{const v=d.data();if(d.id!==me&&v.drag&&v.drag.id&&now-(v.at||0)<8000)nd[v.drag.id]=v.drag;if(d.id!==me&&v.ptr&&v.ptr.k&&now-(v.at||0)<5000)np[v.ptr.k]=v.ptr});peersDrag=nd;ptrPeers(np);drawMap()},()=>{});
   db.doc("game/state").onSnapshot(s=>{game=s.exists?s.data():{};renderSoon()},e=>toast(errMsg(e)));
   db.collection("chars").onSnapshot(s=>{allChars={};s.docs.forEach(d=>allChars[d.id]=normalizeChar(d.data()));const seen=new Set();chars={};Object.entries(allChars).sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0)).forEach(([id,c])=>{const o=c.owner||id;if(c.active===false||seen.has(o))return;seen.add(o);chars[id]=c});
     if(!s.metadata.fromCache)clearTimeout(t);
@@ -1016,7 +1070,8 @@ function viewDice(){
   const c=myChar();
   return `<div class="grid2">
   <section class="panel hot stack"><h2>Würfeltisch</h2>
-    <div class="dicepick">${DICE.map(n=>`<button class="dpick" data-act="die" data-n="${n}" aria-pressed="${pick.die===n}">${dieSvg(n)}W${n}</button>`).join("")}</div>
+    <div class="dicepick main">${DICE_MAIN.map(n=>`<button class="dpick" data-act="die" data-n="${n}" aria-pressed="${pick.die===n}">${dieSvg(n)}W${n}<small>${n===10?"Checks, Angriffe, Initiative":"Schaden, Critical Injuries"}</small></button>`).join("")}</div>
+    <details class="moredice"${DICE_MORE.includes(pick.die)?" open":""}><summary>Weitere Würfel für Hausregeln (W4, W8, W12, W20, W100)</summary><div class="dicepick">${DICE_MORE.map(n=>`<button class="dpick" data-act="die" data-n="${n}" aria-pressed="${pick.die===n}">${dieSvg(n)}W${n}</button>`).join("")}</div></details>
     <div class="row" style="justify-content:space-between">
       <div class="field"><span class="label">Anzahl</span><div class="stepper"><button data-act="cnt" data-d="-1" aria-label="weniger">−</button><span>${pick.count}</span><button data-act="cnt" data-d="1" aria-label="mehr">+</button></div></div>
       <div class="field"><span class="label">Bonus</span><div class="stepper"><button data-act="mod" data-d="-1" aria-label="Bonus senken">−</button><span>${pick.mod>=0?"+"+pick.mod:pick.mod}</span><button data-act="mod" data-d="1" aria-label="Bonus erhöhen">+</button></div></div>
@@ -1025,7 +1080,8 @@ function viewDice(){
     ${isDM()?`<label class="row" style="gap:8px"><input type="checkbox" id="hiddenRoll" ${pick.hidden?"checked":""} style="width:auto"> <span>Verdeckt würfeln (nur du siehst es)</span></label>`:""}
   </section>
   <section class="panel stack"><h2>Skill Check <span class="tag">1W10 + WERT</span></h2>
-    <p class="muted" style="margin:0">Eine 10 explodiert (+1W10), eine 1 ist ein Fumble (−1W10).</p>
+    <p class="muted" style="margin:0">Eine 10 explodiert (+1W10), eine 1 ist ein Fumble (−1W10). Unter halben HP zieht die App automatisch 2 ab.</p>
+    ${c?`<div class="row"><button class="btn small" data-act="facedown">Facedown · COOL + Reputation</button></div>`:""}
     ${c?`<div class="field"><label class="label" for="ck-stat">Wert</label><select id="ck-stat">${STATS.map(([k,l])=>`<option value="${k}" ${pick.stat===k?"selected":""}>${k} · ${l} (${c.stats[k]})</option>`).join("")}</select></div>
     <div class="field"><label class="label" for="ck-skill">Skill + Boni</label><input id="ck-skill" type="number" value="${pick.skill||0}"></div>
     <div class="field"><label class="label" for="ck-label">Wofür?</label><input id="ck-label" placeholder="Handgun auf den Booster" value="${esc(pick.label||"")}"></div>
@@ -1129,6 +1185,7 @@ function quickBar(c){
   const ws=(c.weapons||[]).map((w,i)=>({w,i})).filter(x=>x.w.slot!=="pack").sort((x,y)=>(y.w.slot==="hand")-(x.w.slot==="hand"));
   return `<div class="dock" id="dock" aria-label="Schnellleiste">
     <div class="qrow"><div class="qhp"><span class="label">HP</span><button data-act="hp" data-id="${myCid()}" data-d="-1" aria-label="HP senken">−</button><b>${c.hp}/${hm}</b><button data-act="hp" data-id="${myCid()}" data-d="1" aria-label="HP erhöhen">+</button></div>
+      ${c.hp<1?`<span class="chip" style="color:var(--bad);border-color:var(--bad)">Mortally Wounded · MOVE −6</span><button class="btn small primary" data-act="dsave">Death Save${c.dsPen?` (+${c.dsPen})`:""}</button><button class="btn small" data-act="dsreset">Stabilisiert</button>`:c.hp<Math.ceil(hm/2)?`<span class="chip" style="color:#ffa23f;border-color:#ffa23f">Seriously Wounded · −2</span>`:""}
       <div class="qsp">SP Kopf <b>${(a.head||{}).sp||0}</b> · Körper <b>${(a.body||{}).sp||0}</b></div>
       ${ws.map(({w,i})=>{const {base}=wBase(c,w);return `<div class="qw ${w.slot==="hand"?"hand":""}"><span>${esc(w.name)}${w.mag?` <small>${w.ammo}/${w.mag}</small>`:""}</span><button class="btn small primary" data-act="atk" data-i="${i}" ${w.mag&&w.ammo<1?"disabled":""} aria-label="Angriff mit ${esc(w.name)}">+${base}</button><button class="btn small" data-act="dmg" data-i="${i}">${esc(w.dmg)}</button>${w.mag&&w.ammo<w.mag?`<button class="btn small" data-act="reload" data-i="${i}" aria-label="Nachladen">↻</button>`:""}</div>`}).join("")||'<span class="muted" style="font-size:13px">Keine Waffe griffbereit</span>'}
     </div>
@@ -1242,7 +1299,7 @@ document.addEventListener("pointercancel",e=>{if(drag&&drag.on)return;endDrag(e,
 /* --- Fortschritt: Improvement Points (IP) --- */
 const HARD=new Set(["Autofire","Heavy Weapons","Martial Arts","Pilot Air Vehicle","Demolitions","Electronics/Security Tech","Paramedic"]);
 const skillCost=(n,lv)=>20*lv*(HARD.has(n)?2:1);
-const rankCost=r=>60*r;
+const rankCost=r=>60*(r-1);
 const ROLEAB={Solo:"Combat Awareness",Netrunner:"Interface",Tech:"Maker",Medtech:"Medicine",Fixer:"Operator",Nomad:"Moto",Rockerboy:"Charismatic Impact",Media:"Credibility",Exec:"Teamwork",Lawman:"Backup"};
 const IPAMT=[10,20,30,50,100],IPWHY=["Sitzung überlebt","Ziel erreicht","Gutes Rollenspiel","Clever gelöst","Grosser Erfolg"];
 let ipCfg={to:"*",amt:20,why:"Sitzung überlebt"},freeEdit=false;
@@ -1438,9 +1495,12 @@ function foldInits(){
 function sortOrder(g){return sortSafe(g)}
 
 /* --- Gegner automatisch würfeln (DM) --- */
-const DVS=[[13,"0–6 m"],[15,"7–12 m"],[20,"13–25 m"],[25,"26–50 m"],[30,"51–100 m"]];
+const BANDS=["0–6 m","7–12 m","13–25 m","26–50 m","51–100 m","101–200 m","201–400 m","401–800 m"];
+const RANGE_DV={pistol:[13,15,20,25,30,30,0,0],smg:[15,13,15,20,25,25,30,0],shotgun:[13,15,20,25,30,35,0,0],ar:[17,16,15,13,15,20,25,30],sniper:[30,25,25,20,15,16,17,20],bow:[15,13,15,17,20,22,0,0],gl:[16,15,15,17,20,22,25,0],rl:[17,16,15,15,20,20,25,30]};
+function wClass(w){w=String(w||"").toLowerCase();return /sniper/.test(w)?"sniper":/assault|rifle/.test(w)?"ar":/smg/.test(w)?"smg":/shotgun/.test(w)?"shotgun":/bow/.test(w)?"bow":/grenade/.test(w)?"gl":/rocket/.test(w)?"rl":"pistol"}
+function rangeDV(w,band){const v=RANGE_DV[wClass(w)][band];return v||0}
 const lsG=k=>{try{return localStorage.getItem(k)}catch(e){return null}},lsS=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
-let mob={auto:lsG("nct-mobauto")==="1",apply:lsG("nct-mobapply")==="1",dv:+(lsG("nct-mobdv")||15)||15,log:[]},mobKey="";
+let mob={auto:lsG("nct-mobauto")==="1",apply:lsG("nct-mobapply")==="1",band:clamp(+(lsG("nct-mobband")||1)||0,0,7),log:[]},mobKey="";
 const MELEE=/blade|knife|katana|machete|sword|\bbat\b|fist|club|axe|claw|hammer|melee|nahkampf|messer/i;
 function mobLive(){return (combat.order||[]).map((x,i)=>({x,i})).filter(o=>o.x.kind==="npc"&&o.x.atk&&(o.x.hp==null||o.x.hp>0))}
 function mobTargets(){const o=combat.order||[],alive=id=>chars[id]&&(chars[id].hp||0)>0;const ids=o.filter(x=>x.kind==="pc"&&x.ref&&alive(x.ref)).map(x=>x.ref);return ids.length?ids:Object.keys(chars).filter(alive)}
@@ -1449,17 +1509,20 @@ function dmgRoll(s){const m=String(s||"3W6").match(/(\d+)\s*[wWdD]\s*(\d+)\s*(?:
 function npcAttack(x){
   const ts=mobTargets();if(!ts.length)return null;
   const tid=x.tgt&&ts.includes(x.tgt)?x.tgt:pickOne(ts),t=chars[tid],a=d10x(),total=a.v+(x.atk||0),melee=MELEE.test(x.w||"");
-  let dv=mob.dv,def=0;
-  if(melee){def=d10x().v;dv=def+(t.stats.DEX||0)+((t.skills||{}).Evasion||0)}
-  const r={id:uid(),name:x.name,w:x.w||"Angriff",formula:x.dmg||"3W6",tid,tname:t.handle||t.name,roll:a.b,extra:a.e,flag:a.f,atk:x.atk||0,total,dv,melee,hit:total>dv,applied:false};
+  let dv=melee?0:rangeDV(x.w,mob.band),dodge=false;
+  if(!melee&&!dv)return {id:uid(),name:x.name,w:x.w||"Angriff",formula:x.dmg||"3W6",tid,tname:t.handle||t.name,roll:a.b,extra:a.e,flag:a.f,atk:x.atk||0,total,dv:"–",melee,hit:false,applied:false,out:"ausser Reichweite"};
+  const ev=()=>d10x().v+(t.stats.DEX||0)+((t.skills||{}).Evasion||0);
+  if(melee){dv=ev();dodge=true}else if((t.stats.REF||0)>=8){const e=ev();if(e>dv){dv=e;dodge=true}}
+  const r={id:uid(),name:x.name,w:x.w||"Angriff",formula:x.dmg||"3W6",tid,tname:t.handle||t.name,roll:a.b,extra:a.e,flag:a.f,atk:x.atk||0,total,dv,melee,dodge,hit:total>dv,applied:false};
   if(r.hit){const d=dmgRoll(x.dmg);r.dmg=d.total;r.dice=d.r;r.crit=d.crit}
   return r;
 }
-function mobNet(r){const c=chars[r.tid];const sp=c?((c.armor||{}).body||{sp:0}).sp||0:0;return{sp,net:(r.dmg>sp?r.dmg-sp:0)+(r.crit?5:0)}}
+function mobSP(r,c){const sp=c?((c.armor||{}).body||{sp:0}).sp||0:0;return r.melee?Math.ceil(sp/2):sp}
+function mobNet(r){const c=chars[r.tid],sp=mobSP(r,c),crit=r.crit||(c&&(c.hp||0)<1);return{sp,net:(r.dmg>sp?r.dmg-sp:0)+(crit?5:0)}}
 function mobApply(r){
   if(!r||!r.hit||r.applied)return;r.applied=true;
-  editChar(r.tid,c=>{c.armor=c.armor||{};const ar=c.armor.body||{sp:0,max:0},sp=ar.sp||0,pen=r.dmg>sp,net=(pen?r.dmg-sp:0)+(r.crit?5:0);
-    c.hp=Math.max(0,(c.hp||0)-net);if(pen&&sp>0){ar.sp=sp-1;c.armor.body=ar}});
+  editChar(r.tid,c=>{c.armor=c.armor||{};const ar=c.armor.body||{sp:0,max:0},full=ar.sp||0,sp=r.melee?Math.ceil(full/2):full,pen=r.dmg>sp,mort=(c.hp||0)<1,net=(pen?r.dmg-sp:0)+(r.crit||mort?5:0);
+    c.hp=Math.max(0,(c.hp||0)-net);if(pen&&full>0){ar.sp=full-1;c.armor.body=ar}if(mort)c.dsPen=(c.dsPen||0)+1});
 }
 function runMob(list,single){
   const res=list.map(o=>npcAttack(o.x)).filter(Boolean);
@@ -1473,8 +1536,8 @@ function runMob(list,single){
 }
 function mobLine(r){
   const n=r.hit?mobNet(r):null;
-  const roll=`1W10 ${r.roll}${r.flag==="crit"?` +${r.extra} Krit`:r.flag==="fumble"?` −${r.extra} Fumble`:""} + ${r.atk} = <b>${r.total}</b> gegen ${r.melee?"Ausweichen ":"DV "}${r.dv}`;
-  const out=r.hit?`Treffer · ${esc(r.formula)}: ${r.dmg}${r.crit?" + 5 Critical Injury":""} → <b>${r.applied?"abgezogen":n.net?n.net+" HP":"von der Armor geschluckt"}</b>${r.applied||!n.net?"":` (nach SP ${n.sp})`}`:"daneben";
+  const roll=`1W10 ${r.roll}${r.flag==="crit"?` +${r.extra} Krit`:r.flag==="fumble"?` −${r.extra} Fumble`:""} + ${r.atk} = <b>${r.total}</b> gegen ${r.dodge?"Ausweichen ":"DV "}${r.dv}`;
+  const out=r.out?r.out:r.hit?`Treffer · ${esc(r.formula)}: ${r.dmg}${r.crit?" + 5 Critical Injury":""} → <b>${r.applied?"abgezogen":n.net?n.net+" HP":"von der Armor geschluckt"}</b>${r.applied||!n.net?"":` (nach SP ${n.sp})`}`:"daneben";
   return `<div class="item ${r.hit?"hit":"miss"}"><span class="q">${r.total}</span><span class="n">${esc(r.name)} → ${esc(r.tname)}<small>${esc(r.w)} · ${roll}</small><small>${out}</small></span><span class="acts">${r.hit&&!r.applied?`<button class="btn small primary" data-act="mobapply1" data-id="${r.id}">Abziehen</button>`:r.hit?'<span class="chip">✓</span>':""}</span></div>`;
 }
 function mobBar(){
@@ -1482,12 +1545,12 @@ function mobBar(){
   if(!live.length&&!mob.log.length)return "";
   return `<div class="mob stack"><div class="row" style="justify-content:space-between;align-items:end;gap:10px">
     <div class="row" style="gap:8px"><button class="btn primary small" data-act="moball" ${live.length?"":"disabled"}>Alle Gegner würfeln · ${live.length}</button>
-    <div class="field" style="flex:0 1 160px"><label class="label" for="mobDv">Distanz · DV</label><select id="mobDv">${DVS.map(([v,l])=>`<option value="${v}" ${+v===mob.dv?"selected":""}>${l} · DV ${v}</option>`).join("")}</select></div></div>
+    <div class="field" style="flex:0 1 160px"><label class="label" for="mobDv">Distanz zur Crew</label><select id="mobDv">${BANDS.map((l,i)=>`<option value="${i}" ${i===mob.band?"selected":""}>${l}</option>`).join("")}</select></div></div>
     <div class="stack" style="gap:4px"><label class="row" style="gap:6px"><input type="checkbox" id="mobAuto" ${mob.auto?"checked":""} style="width:auto"> <span>Auto-Wurf, wenn ein Gegner dran ist</span></label>
     <label class="row" style="gap:6px"><input type="checkbox" id="mobApply" ${mob.apply?"checked":""} style="width:auto"> <span>Treffer sofort von den HP abziehen</span></label></div></div>
     ${mob.log.length?`<div class="inv">${mob.log.slice(0,8).map(mobLine).join("")}</div>
     <div class="row">${open?`<button class="btn small primary" data-act="mobapplyall">Alle Treffer abziehen · ${open}</button>`:""}<button class="btn small" data-act="mobclear">Liste leeren</button></div>`:""}
-    <p class="muted" style="margin:0;font-size:12px">Fernkampf trifft, wenn der Wurf den DV der Distanz übertrifft. Nahkampf würfelt das Ausweichen des Ziels gleich mit (DEX + Evasion + 1W10). Ohne gewähltes Ziel nimmt jeder Gegner jemanden aus der Crew per Zufall. Abziehen rechnet die Körper-SP ab und senkt sie bei einem Durchschlag um 1.</p></div>`;
+    <p class="muted" style="margin:0;font-size:12px">Fernkampf: Der DV ergibt sich aus Waffe und Distanz (Tabelle aus dem Regelbuch). Crew-Mitglieder mit REF 8+ weichen automatisch aus, wenn ihr Wurf besser ist. Nahkampf: Das Ziel weicht immer aus (DEX + Evasion + 1W10), die Armor zählt nur halb. Ohne gewähltes Ziel nimmt jeder Gegner jemanden aus der Crew per Zufall. Abziehen rechnet die Körper-SP ab und senkt sie bei einem Durchschlag um 1. Treffer auf Sterbende geben automatisch eine Critical Injury und +1 auf den Death Save.</p></div>`;
 }
 
 /* --- Kampagne --- */
@@ -1911,7 +1974,7 @@ function buildMapCache(m){
 /* Ansicht */
 function mapShell(){
   return `<div id="mapTop"></div><section class="panel stack" id="mapPanel"><div id="mapTools"></div>
-    <div class="mapbox" id="mapBox"><canvas id="mapCanvas" aria-label="Spielkarte"></canvas><div class="mapzoom"><button class="btn small" data-act="mzoom" data-d="1" aria-label="Hineinzoomen">+</button><button class="btn small" data-act="mzoom" data-d="-1" aria-label="Herauszoomen">−</button><button class="btn small" data-act="mfit">Ganz</button><button class="btn small" data-act="mme">Meine Figur</button></div></div>
+    <div class="mapbox" id="mapBox"><canvas id="mapCanvas" aria-label="Spielkarte"></canvas><canvas id="ptrCanvas" aria-hidden="true"></canvas><div class="mapscale" id="mapScale" hidden></div><div class="mapzoom"><button class="btn small" data-act="mzoom" data-d="1" aria-label="Hineinzoomen">+</button><button class="btn small" data-act="mzoom" data-d="-1" aria-label="Herauszoomen">−</button><button class="btn small" data-act="mfit">Ganz</button><button class="btn small" data-act="mme">Meine Figur</button></div></div>
     <div id="mapSide"></div></section>`;
 }
 function toolSwatch(k){if(TILES[k])return `<i class="sw" style="background:${TILES[k].c}"></i>`;return ""}
@@ -1919,7 +1982,7 @@ function mapToolsHtml(){
   const dm=isDM(),m=curMap(),list=Object.entries(maps).sort((a,b)=>(b[1].at||0)-(a[1].at||0));
   if(!dm)return m?`<div class="row" style="justify-content:space-between"><h2>${esc(m.name||"Karte")}${levelList(maps[m.id]).length>1?` <span class="tag">${esc(m.lvName||"")}</span>`:""}</h2><span class="muted" style="font-size:13px">Zieh deine Figur. Türen öffnest du durch Antippen, wenn du direkt daneben stehst. Auf einer Treppe wechselst du die Ebene.</span></div>`:"";
   return `<div class="row" style="justify-content:space-between;align-items:end"><div class="row" style="align-items:end">
-      ${list.length?`<div class="field" style="min-width:180px"><label class="label" for="map-sel">Karte</label><select id="map-sel">${list.map(([id,x])=>`<option value="${id}" ${id===(m&&m.id)?"selected":""}>${esc(x.name||"Karte")}${id===mapState.active?" · live":""}</option>`).join("")}</select></div>`:""}
+      ${list.length?`<div class="field" style="min-width:180px"><label class="label" for="map-sel">Karte</label><select id="map-sel">${list.map(([id,x])=>`<option value="${id}" ${id===(m&&m.id)?"selected":""}>${esc(x.name||"Karte")}${id===mapState.active?" · live":""}</option>`).join("")}</select></div>${m?`<div class="field" style="min-width:120px"><label class="label" for="map-scale">Massstab</label><select id="map-scale">${SCALES.map(([v,l])=>`<option value="${v}" ${v===mapScale(m.id)?"selected":""}>${l} · 1 Feld = ${v} m</option>`).join("")}${SCALES.some(s=>s[0]===mapScale(m.id))?"":`<option value="${mapScale(m.id)}" selected>Eigener · 1 Feld = ${mapScale(m.id)} m</option>`}</select></div>`:""}`:""}
       <button class="btn ${mapView.gen?"":"primary"}" data-act="mgen">${mapView.gen?"Generator schliessen":"Neue Karte"}</button></div>
     ${m?`<div class="row">${mapState.active===m.id?'<span class="chip you">Spieler sehen diese Karte</span>':`<button class="btn small primary" data-act="mlive">Den Spielern zeigen</button>`}<button class="btn small" data-act="medit" aria-pressed="${mapView.edit}">${mapView.edit?"Bearbeiten beenden":"Bearbeiten"}</button><button class="btn small" data-act="mprev" aria-pressed="${mapView.preview}">${mapView.preview?"DM-Ansicht":"Spieleransicht"}</button></div>`:""}</div>
   ${m?`<div class="row" style="gap:8px;align-items:center"><span class="label">Ebene</span><div class="seg">${levelList(maps[m.id]).map(l=>`<button data-act="mlvl" data-d="${l.z}" aria-pressed="${l.z===m.z}">${esc(l.name)}</button>`).join("")}</div>
@@ -1968,7 +2031,7 @@ function renderMapView(v,top){
   drawMap();
 }
 function fitMap(m){const cv=$("#mapCanvas");if(!cv||!m)return;const W=cv.clientWidth||600,H=cv.clientHeight||400;const z=Math.min(W/(m.w*28),H/(m.h*28));mapView.zoom=clamp(z,.3,3);mapView.ox=(W-m.w*28*mapView.zoom)/2;mapView.oy=(H-m.h*28*mapView.zoom)/2}
-let drawQ=false;function drawMap(){if(drawQ)return;drawQ=true;requestAnimationFrame(()=>{drawQ=false;drawMapNow()})}
+let drawQ=false;function drawMap(){if(drawQ)return;drawQ=true;requestAnimationFrame(()=>{drawQ=false;drawMapNow();drawPointers()})}
 function drawMapNow(){
   const cv=$("#mapCanvas"),m=curMap();if(!cv||!m)return;
   const dpr=Math.min(window.devicePixelRatio||1,2),W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;
@@ -2118,6 +2181,7 @@ document.addEventListener("pointerdown",e=>{
   const cv=e.target.closest&&e.target.closest("#mapCanvas");if(!cv)return;const m=curMap();if(!m)return;
   cv.setPointerCapture(e.pointerId);mptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(mptr.size===2){const p=[...mptr.values()];mact={kind:"pinch",d:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y),z:mapView.zoom,ox:mapView.ox,oy:mapView.oy,mx:(p[0].x+p[1].x)/2,my:(p[0].y+p[1].y)/2};return}
+  if(e.button===2){e.preventDefault();ptrStart(e);return}
   const [cx,cy,lx,ly]=cellAt(e),tool=mapView.tool,dmEdit=isDM()&&mapView.edit&&!mapView.preview;
   if(isDM()&&mapView.place&&!mapView.preview){const f=FOES.find(x=>x.k===mapView.place);if(f&&cx>=0&&cy>=0&&cx<m.w&&cy<m.h){const F=foeStats(f,0);addFoeToken(m,{...F,base:f.n},cy*m.w+cx,nextFoeName(f.n)).then(()=>SFX.click()).catch(er=>toast(errMsg(er)));drawMap()}mact=null;return}
   if(dmEdit&&tool!=="move"){const em=editMap();
@@ -2127,12 +2191,15 @@ document.addEventListener("pointerdown",e=>{
   const t=tokenAt(m,cx,cy);
   if(t&&canMoveTok(t)){mact={kind:"tok",id:t.id,sx:lx,sy:ly,px:lx,py:ly,moved:false,cx,cy};return}
   mact={kind:"pan",sx:e.clientX,sy:e.clientY,ox:mapView.ox,oy:mapView.oy,moved:false,cx,cy,tok:t&&t.id};
+  if(e.pointerType!=="mouse"){const a0=mact,ev={clientX:e.clientX,clientY:e.clientY};setTimeout(()=>{if(mact===a0&&!a0.moved&&mptr.size===1){if(navigator.vibrate)try{navigator.vibrate(15)}catch(er){}ptrStart(ev)}},450)}
 });
+document.addEventListener("contextmenu",e=>{if(e.target.closest&&e.target.closest("#mapCanvas"))e.preventDefault()});
 document.addEventListener("pointermove",e=>{
   if(!mptr.has(e.pointerId)||!mact)return;mptr.set(e.pointerId,{x:e.clientX,y:e.clientY});const m=curMap();if(!m)return;
   if(mact.kind==="pinch"&&mptr.size===2){const p=[...mptr.values()],d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y),r=$("#mapCanvas").getBoundingClientRect();
     const z=clamp(mact.z*d/mact.d,.25,4),mx=(p[0].x+p[1].x)/2-r.left,my=(p[0].y+p[1].y)/2-r.top,omx=mact.mx-r.left,omy=mact.my-r.top;
     mapView.zoom=z;mapView.ox=mx-(omx-mact.ox)*z/mact.z;mapView.oy=my-(omy-mact.oy)*z/mact.z;drawMap();return}
+  if(mact.kind==="ptr"){const q=ptrAt(e);if(q){ptrFeed("me",q);ptrSend(q)}return}
   const [cx,cy,lx,ly]=cellAt(e);
   if(mact.kind==="pan"){const dx=e.clientX-mact.sx,dy=e.clientY-mact.sy;if(Math.hypot(dx,dy)>4)mact.moved=true;mapView.ox=mact.ox+dx;mapView.oy=mact.oy+dy;drawMap()}
   else if(mact.kind==="tok"){mact.px=lx;mact.py=ly;if(Math.hypot(lx-mact.sx,ly-mact.sy)>5)mact.moved=true;if(mact.moved){const cs=28*mapView.zoom;liveSend({id:mact.id,map:m.id,x:(lx-mapView.ox)/cs,y:(ly-mapView.oy)/cs})}drawMap()}
@@ -2142,6 +2209,7 @@ document.addEventListener("pointermove",e=>{
 function mapPointerEnd(e){
   if(!mptr.has(e.pointerId))return;mptr.delete(e.pointerId);const a=mact;if(!a)return;
   if(a.kind==="pinch"){if(mptr.size===0)mact=null;return}
+  if(a.kind==="ptr"){mact=null;clearInterval(ptrBeat);ptrEnd("me");ptrSend(null);return}
   mact=null;const m=curMap();if(!m)return;const [cx,cy]=cellAt(e);
   if(a.kind==="tok"){if(a.moved)liveSend(null);if(a.moved&&(cx!==a.cx||cy!==a.cy))moveTok({...tokens[a.id],id:a.id},cx,cy,m);else{if(!tapDoor(m,cx,cy)&&isDM()){mapView.sel=a.id;$("#mapSide").innerHTML=mapSideHtml()}drawMap()}}
   else if(a.kind==="pan"&&!a.moved){if(!tapDoor(m,a.cx,a.cy)&&isDM()){mapView.sel=a.tok||null;$("#mapSide").innerHTML=mapSideHtml()}drawMap()}
@@ -2243,16 +2311,17 @@ function viewRules(){
   const player=[
     rule("Die Basic Check","Jede Check",`<p><b>1W10 + Wert + Skill</b>. Liegt das Ergebnis über der Schwierigkeit (DV), klappt es.</p><ul><li>Gewürfelte <b>10</b>: noch einmal 1W10 werfen und dazuzählen.</li><li>Gewürfelte <b>1</b>: noch einmal 1W10 werfen und abziehen.</li><li>Die App macht das bei „Skill Check“ automatisch.</li></ul>`),
     rule("Schwierigkeiten","DV",dvTable()),
-    rule("Dein Zug im Kampf","Runde",`<ul><li><b>Initiative:</b> 1W10 + REF. Höchster Wert beginnt.</li><li>Pro Zug hast du <b>eine Bewegung</b> (bis MOVE × 2 Meter) und <b>eine Aktion</b> (schiessen, zuschlagen, Gerät benutzen, nachladen …).</li><li>Rennen statt handeln: Aktion für eine zweite Bewegung opfern.</li></ul>`),
-    rule("Angreifen","Kampf",`<ul><li><b>Fernkampf:</b> 1W10 + REF + Weapon Skill gegen einen DV, den der DM nach Entfernung festlegt.</li><li><b>Nahkampf:</b> 1W10 + DEX + Nahkampffertigkeit gegen die Verteidigung des Ziels.</li><li><b>Evasion:</b> 1W10 + DEX + Evasion. Gegen Kugeln nur mit REF 8 oder höher.</li><li><b>Gezielt auf den Kopf:</b> −8 auf den Angriff, dafür doppelter Schaden.</li></ul>`),
+    rule("Dein Zug im Kampf","Runde",`<ul><li><b>Initiative:</b> 1W10 + REF. Höchster Wert beginnt.</li><li>Pro Zug hast du <b>eine Bewegung</b> (bis MOVE × 2 Meter) und <b>eine Aktion</b> (schiessen, zuschlagen, Gerät benutzen, nachladen …).</li><li>Rennen statt handeln: Aktion für eine zweite Bewegung opfern.</li><li><b>ROF 2</b> (Pistolen bis Heavy Pistol, leichte bis schwere Nahkampfwaffen): zwei Angriffe pro Aktion. Alles andere ROF 1.</li></ul>`),
+    rule("Angreifen","Kampf",`<ul><li><b>Fernkampf:</b> 1W10 + REF + Weapon Skill gegen einen DV, der von Waffe und Entfernung abhängt.</li><li><b>Nahkampf:</b> 1W10 + DEX + Melee Weapon (oder Brawling, Martial Arts) gegen das Ausweichen des Ziels. Melee-Waffen und Martial Arts zählen die Armor nur <b>halb</b>.</li><li><b>Evasion:</b> 1W10 + DEX + Evasion. Gegen Kugeln nur mit REF 8 oder höher.</li><li><b>Gezielter Schuss:</b> −8, nur ROF 1. Kopf: Schaden, der durch die Kopf-Armor kommt, zählt doppelt. Bein: Broken Leg. Hand: Gegenstand fällt.</li><li><b>Autofire</b> (SMG, Sturmgewehr): 10 Schuss, eigene DV-Tabelle, Schaden 2W6 × um wie viel du den DV übertriffst (max. ×3 SMG, ×4 Sturmgewehr).</li><li><b>Brawling-Schaden</b> nach BODY: bis 4 = 1W6, 5–6 = 2W6, 7–10 = 3W6, 11+ = 4W6.</li></ul>`),
     rule("Schaden &amp; Armor","HP",`<ul><li>Schaden der Waffe würfeln, die <b>Armor (SP)</b> des Ziels abziehen. Der Rest geht auf die Hit Points.</li><li>Kommt Schaden durch, verliert die Armor <b>1 SP</b>.</li><li>Zwei oder mehr <b>6er</b> im Schadenswurf: <b>Kritische Verletzung</b> und 5 Bonusschaden.</li></ul>`),
-    rule("Verwundet &amp; Sterben","Wichtig",`<ul><li>Unter <b>halben HP</b>: −2 auf alle Checks.</li><li>Unter <b>1 HP</b>: Du liegst im Sterben. Jede Runde ein <b>Death Save</b>: 1W10, muss unter deinem BODY liegen. Jeder weitere Death Save wird schwerer.</li><li>First Aid oder ein Medtech stabilisieren dich.</li></ul>`),
+    rule("Verwundet &amp; Sterben","Wichtig",`<ul><li>Unter <b>halben HP</b> (Seriously Wounded): −2 auf alle Aktionen. Die App zieht das automatisch ab.</li><li>Unter <b>1 HP</b> (Mortally Wounded): MOVE −6. Zu Beginn jedes Zugs ein <b>Death Save</b>: 1W10 + Strafe, das Ergebnis muss <b>unter</b> deinem BODY liegen. Eine gewürfelte 10 ist immer tödlich. Die Strafe steigt jede Runde und bei jedem weiteren Treffer um 1.</li><li>Jeder Treffer auf einen Sterbenden ist automatisch eine Critical Injury.</li><li><b>Stabilisieren:</b> TECH + First Aid oder Paramedic gegen DV 10 (leicht verwundet), 13 (schwer) oder 15 (sterbend). Danach nach einer Minute bewusstlos wieder bei 1 HP.</li><li><b>Heilen:</b> BODY an HP pro Tag Ruhe.</li></ul>`),
+    rule("Facedown","Einschüchtern",`<p>Zwei Seiten stehen sich gegenüber, noch fällt kein Schuss. Beide würfeln <b>COOL + Reputation + 1W10</b>. Wer verliert, weicht zurück. Kämpft er trotzdem, hat er gegen den Gewinner −2. Den Wurf findest du im Reiter Würfeln.</p>`),
     rule("Glück","LUCK",`<p>Vor einem Wurf darfst du <b>Glückspunkte</b> ausgeben, je Punkt +1. Dein Vorrat ist so gross wie LUCK und füllt sich zur nächsten Sitzung wieder auf.</p>`),
     rule("Humanity &amp; Cyberware","Chrom",`<ul><li>Jede Cyberware kostet Humanity. Der DM sagt dir, wie viel.</li><li>Pro 10 verlorene Punkte sinkt deine <b>EMP</b> um 1.</li><li>Bei 0 wirst du zum Cyberpsycho und der Charakter gehört dem DM.</li></ul>`),
     rule("Die Roles","Übersicht",`<ul>${ROLES.map(r=>`<li><b>${r}:</b> ${ROLETIPS[r].aufgabe}</li>`).join("")}</ul>`),
-    rule("Fortschritt mit IP","Steigern",`<ul><li>Es gibt keine Stufen wie bei D&amp;D. Der DM vergibt <b>Improvement Points (IP)</b>, meist am Ende einer Sitzung.</li><li><b>Skill steigern:</b> neue Stufe × 20 IP. Von 4 auf 5 kostet also 100 IP. Schwere Skills (×2) kosten das Doppelte.</li><li><b>Role Ability steigern:</b> neuer Rang × 60 IP.</li><li>Grundwerte wie REF oder BODY steigen normalerweise nicht, nur durch Cyberware oder besondere Ereignisse.</li><li>Höchste Stufe ist jeweils 10.</li></ul>`),
+    rule("Fortschritt mit IP","Steigern",`<ul><li>Es gibt keine Stufen wie bei D&amp;D. Der DM vergibt <b>Improvement Points (IP)</b>, meist am Ende einer Sitzung.</li><li><b>Skill steigern:</b> neue Stufe × 20 IP. Von 4 auf 5 kostet also 100 IP. Schwere Skills (×2) kosten das Doppelte.</li><li><b>Role Ability steigern:</b> (neuer Rang − 1) × 60 IP, also 240 IP für Rang 5.</li><li><b>×2-Skills</b> (doppelte Kosten): Autofire, Heavy Weapons, Martial Arts, Pilot Air Vehicle, Demolitions, Electronics/Security Tech, Paramedic.</li><li>Grundwerte wie REF oder BODY steigen normalerweise nicht, nur durch Cyberware oder besondere Ereignisse.</li><li>Höchste Stufe ist jeweils 10.</li></ul>`),
     rule("Cyberware &amp; Plätze","Chrom",`<ul><li>Manche Cyberware ist ein <b>Grundmodul</b> mit Plätzen: Neural Link (5), Cybereye (3, eins pro Auge), Cyberaudio Suite (3), Cyberarm (4, eins pro Arm), Cyberleg (3, eins pro Bein).</li><li><b>Optionen</b> brauchen ein passendes Grundmodul und belegen einen Platz. Einige brauchen beide Arme oder Beine.</li><li>Innere und äussere Körperware sowie Mode brauchen keinen Platz, kosten aber Humanity.</li><li>Baust du ein Grundmodul aus, kommen seine Optionen mit in den Rucksack.</li></ul>`),
-    rule("Netrunning","Netrunner",`<p>Nur wichtig, wenn jemand einen <b>Netrunner</b> spielt oder der Gig ein gesichertes Netz hat.</p><ul><li>Einstöpseln geht nur in der Nähe eines <b>Access Point</b> (etwa 6 m) mit Cyberdeck und Neural Link.</li><li>Das Netz ist eine <b>NET Architecture</b>: Stockwerke nach unten mit Passwörtern, Dateien, Control Nodes (Kameras, Türen, Geschütze) und <b>Black ICE</b>.</li><li>Pro Zug hast du statt Bewegung und Aktion mehrere <b>NET Actions</b>: Interface 1–3 = 2, 4–6 = 3, 7–9 = 4, 10 = 5.</li><li>Wichtige Programme-Aktionen: <b>Pathfinder</b> (Karte des Netzes), <b>Backdoor</b> (Passwort knacken), <b>Eye-Dee</b> (Datei erkennen), <b>Control</b> (Gerät übernehmen), <b>Slide</b> (vor ICE fliehen), <b>Zap</b> (ICE angreifen).</li><li>Check: 1W10 + Interface gegen den DV des Netzes (6 leicht, 8 normal, 10 schwer, 12 sehr schwer).</li><li>Black ICE greift dein Deck und deinen Kopf an. Dein Körper steht derweil wehrlos im Raum. Die Crew passt auf dich auf.</li></ul>`),
+    rule("Netrunning","Netrunner",`<p>Nur wichtig, wenn jemand einen <b>Netrunner</b> spielt oder der Gig ein gesichertes Netz hat.</p><ul><li>Einstöpseln geht nur in der Nähe eines <b>Access Point</b> (etwa 6 m) mit Cyberdeck und Neural Link.</li><li>Das Netz ist eine <b>NET Architecture</b>: Stockwerke nach unten mit Passwörtern, Dateien, Control Nodes (Kameras, Türen, Geschütze) und <b>Black ICE</b>.</li><li>Im Netz hast du pro Zug mehrere <b>NET Actions</b>: Interface 1–3 = 2, 4–6 = 3, 7–9 = 4, 10 = 5.</li><li>Wichtige Programme-Aktionen: <b>Pathfinder</b> (Karte des Netzes), <b>Backdoor</b> (Passwort knacken), <b>Eye-Dee</b> (Datei erkennen), <b>Control</b> (Gerät übernehmen), <b>Slide</b> (vor ICE fliehen), <b>Zap</b> (ICE angreifen).</li><li>Check: 1W10 + Interface gegen den DV des Netzes (6 leicht, 8 normal, 10 schwer, 12 sehr schwer).</li><li>Black ICE greift dein Deck und deinen Kopf an. Dein Körper steht derweil wehrlos im Raum. Die Crew passt auf dich auf.</li></ul>`),
     rule("Gegenstände","Inventar",`<p>Neue Ausrüstung trägst du im Reiter „Charakter“ ein. Mit <b>Weitergeben</b> schickst du etwas direkt ins Inventar eines anderen Spielers.</p>`)
   ];
   const dm=[
@@ -2353,6 +2422,9 @@ document.addEventListener("click",async e=>{
     toast(`${q}× ${it.name} an ${chars[to]?.handle||chars[to]?.name} übergeben.`);
   }
   else if(a==="rulesfor"){rulesFor=b.dataset.k;render()}
+  else if(a==="dsave")deathSave();
+  else if(a==="dsreset"){editChar(myCid(),x=>{x.dsPen=0});toast("Stabilisiert. Die Death-Save-Strafe ist zurückgesetzt.")}
+  else if(a==="facedown"){const c=myChar();if(!c)return;rollCheck((c.stats.COOL||0)+(c.rep||0),`1W10 + COOL ${c.stats.COOL||0} + Reputation ${c.rep||0}`,"· Facedown")}
   else if(a==="skroll"){const c=myChar();if(!c)return;const n=b.dataset.k,k=b.dataset.s,lv=(c.skills||{})[n]||0;rollCheck(c.stats[k]+lv,`1W10 + ${k} ${c.stats[k]} + ${n} ${lv}`,`· ${n}`)}
   else if(a==="pin"){const n=b.dataset.k,c=myChar();if(!c)return;const cur=pinsOf(c);editChar(myCid(),c=>{let p=cur.slice();p=p.includes(n)?p.filter(x=>x!==n):p.concat(n).slice(-8);c.pins=p})}
   else if(a==="skup"){const n=b.dataset.k,c=myChar();if(!c)return;const lv=(c.skills||{})[n]||0,cost=skillCost(n,lv+1);
@@ -2415,7 +2487,7 @@ document.addEventListener("click",async e=>{
   else if(a==="mgtype"){mapView.gtype=b.dataset.k;render()}
   else if(a==="mgsize"){mapView.gsize=b.dataset.k;render()}
   else if(a==="mcreate"){const g=genMap(mapView.gtype,mapView.gsize,Math.floor(Math.random()*1e9)),id=uid();
-    const doc={name:(MAPTYPES.find(t=>t[0]===mapView.gtype)||["","Karte"])[1]+" "+(Object.keys(maps).length+1),...g,fog:true,at:Date.now()};
+    const doc={name:(MAPTYPES.find(t=>t[0]===mapView.gtype)||["","Karte"])[1]+" "+(Object.keys(maps).length+1),...g,fog:true,scale:mapView.gtype==="city"?10:2,at:Date.now()};
     maps[id]=doc;mapView.id=id;mapView.gen=false;mapView.fitFor=null;mapLocal=null;
     try{await db.doc("maps/"+id).set(doc);if(!mapState.active||!maps[mapState.active])await write("game/map",x=>({...(x||{}),active:id}))}catch(e){toast(errMsg(e))}
     SFX.chrome();render()}
@@ -2552,7 +2624,7 @@ document.addEventListener("change",e=>{
   if(el.id==="hiddenRoll")pick.hidden=el.checked;
   if(el.id==="mobAuto"){mob.auto=el.checked;lsS("nct-mobauto",mob.auto?"1":"0");if(mob.auto)mobKey=(combat.fight||"")+":"+combat.round+":"+combat.turn}
   if(el.id==="mobApply"){mob.apply=el.checked;lsS("nct-mobapply",mob.apply?"1":"0")}
-  if(el.id==="mobDv"){mob.dv=+el.value||15;lsS("nct-mobdv",String(mob.dv));el.blur()}
+  if(el.id==="mobDv"){mob.band=clamp(+el.value||0,0,7);lsS("nct-mobband",String(mob.band));el.blur();renderSoon()}
   if(el.classList&&el.classList.contains("tgtsel")){const i=+el.dataset.i,v=el.value||null,id=((combat.order||[])[i]||{}).id;el.blur();write("game/combat",g=>{const x=g&&(g.order||[]).find(o=>o.id===id);if(!x)return null;x.tgt=v;return g})}
   if(el.id==="portraitFile"&&el.files&&el.files[0])setPortrait(el.files[0]);
   if(el.dataset.lp&&draft){draft.lp[el.dataset.lp]=el.value}
@@ -2560,6 +2632,7 @@ document.addEventListener("change",e=>{
   if(el.id==="foe-p"){foe.power=+el.value;el.blur();render()}
   if(el.id==="foe-c"){foe.count=clamp(+el.value||1,1,10);el.blur();render()}
   if(el.id==="foe-n"){foe.name=el.value}
+  if(el.id==="map-scale"){const m=curMap(),v=+el.value||2;el.blur();if(m){maps[m.id]={...maps[m.id],scale:v};write("maps/"+m.id,d=>{if(!d)return null;d.scale=v;return d}).catch(er=>toast(errMsg(er)));toast(`Massstab: 1 Feld = ${v} m`);drawMap()}}
   if(el.id==="eg-th"){encGen.theme=el.value;el.blur();render()}
   if(el.dataset.enc){const f=enc[+el.dataset.i],k=el.dataset.enc;if(f){const num=["hp","sp","atk","ref","dodge"].includes(k);f[k]=num?Math.max(0,Math.round(+el.value||0)):el.value.trim()||f[k];if(k==="hp")f.hp=Math.max(1,f.hp)}el.blur();render()}
   if(el.id==="cat-to"){catTo=el.value}
@@ -2603,12 +2676,17 @@ function doCheck(){
   const sk=+$("#ck-skill").value||0,label=$("#ck-label").value.trim();
   rollCheck(c.stats[k]+sk,`1W10 + ${k} ${c.stats[k]}${sk?` + ${sk}`:""}`,label?`· ${label}`:`· ${k}-Check`);
 }
+function woundPen(c){if(!c)return 0;const hm=c.hpMax||hpMax(c.stats);return (c.hp||0)<Math.ceil(hm/2)?-2:0}
 function rollCheck(mod,formula,label,who){
+  const wc=!who&&myChar(),wp=woundPen(wc);if(wp){mod+=wp;formula+=" − 2 verwundet"}
   const base=rnd(10);let extra=0,flag="";
   if(base===10){extra=rnd(10);flag="crit"}else if(base===1){extra=rnd(10);flag="fumble"}
   const total=base+(flag==="crit"?extra:flag==="fumble"?-extra:0)+mod;
   publish({name:who||rollerName(),die:10,results:[base],extra,flag,mod,total,formula,label,at:Date.now(),by:me},isDM()&&pick.hidden);
 }
+function deathSave(){const c=myChar();if(!c)return;const pen=c.dsPen||0,base=rnd(10),total=base+pen,body=c.stats.BODY||0,ok=base!==10&&total<body;
+  publish({name:rollerName(),die:10,results:[base],extra:0,flag:ok?"":"fumble",mod:pen,total,formula:`1W10${pen?" + "+pen+" Strafe":""} gegen BODY ${body}`,label:"· Death Save",note:ok?"Überlebt diese Runde":"Tot. Nur noch der DM kann entscheiden, ob es eine Rettung gibt.",at:Date.now(),by:me},false);
+  editChar(myCid(),x=>{x.dsPen=(x.dsPen||0)+1})}
 function rollDamage(w,who){
   const m=String(w.dmg).match(/(\d+)\s*[wWdD]\s*(\d+)\s*(?:([+-])\s*(\d+))?/);
   if(!m){toast("Schaden im Format 3W6 oder 2W6+2 angeben.");return}
