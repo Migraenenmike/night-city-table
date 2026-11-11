@@ -1660,7 +1660,7 @@ const TILES={
 const DECO={T:{n:"Schreibtisch",solid:1},h:{n:"Stuhl",solid:0},P:{n:"Terminal",solid:1},S:{n:"Server",solid:1},F:{n:"Regal",solid:1},X:{n:"Kiste",solid:1},O:{n:"Fass",solid:1},
   A:{n:"Auto",solid:1},a:{n:"Auto",solid:1},Q:{n:"Bar",solid:1},K:{n:"Sofa",solid:1},Y:{n:"Bett",solid:1},V:{n:"Automat",solid:1},E:{n:"Generator",solid:1},L:{n:"Pflanze",solid:1},
   N:{n:"Neon",solid:0},C:{n:"Klimaanlage",solid:1},H:{n:"Leiter/Schacht",solid:0},J:{n:"Lift",solid:0},x:{n:"Müll",solid:0},p:{n:"Rohr",solid:0},Z:{n:"Treppe",solid:0}};
-const MAPTYPES=[["building","Gebäude","Gemischte Räume: Büros, Lager, Klinik, Server."],["office","Büroetage","Konzernetage mit Glas-Meetingräumen und Serverraum."],["bunker","Bunker","Betonflur, Waffenkammer, Schlafsaal, Generator."],["cellar","Keller","Backsteinkeller an einem Abwasserkanal mit Brücken."],["warehouse","Lagerhalle","Kistenreihen, Laderampe, Büro mit Glasfront."],["club","Nachtclub","Tanzfläche, Bar, VIP-Räume und Backstage."],["street","Strasse","Hauptstrasse mit Gassen, Hinterhöfen und Läden."],["city","Stadtviertel","Strassenraster mit Blocks, Höfen und Parks."],["empty","Leer","Leere Fläche zum Selbstbauen."]];
+const MAPTYPES=[["metropolis","Ganze Stadt","Organische Stadtkarte mit Bezirken, Küste und Fluss. 1 Feld = 100 m. Viertel und Gebäude öffnest du direkt daraus."],["building","Gebäude","Gemischte Räume: Büros, Lager, Klinik, Server."],["office","Büroetage","Konzernetage mit Glas-Meetingräumen und Serverraum."],["bunker","Bunker","Betonflur, Waffenkammer, Schlafsaal, Generator."],["cellar","Keller","Backsteinkeller an einem Abwasserkanal mit Brücken."],["warehouse","Lagerhalle","Kistenreihen, Laderampe, Büro mit Glasfront."],["club","Nachtclub","Tanzfläche, Bar, VIP-Räume und Backstage."],["street","Strasse","Hauptstrasse mit Gassen, Hinterhöfen und Läden."],["city","Stadtviertel","Strassenraster mit Blocks, Höfen und Parks."],["empty","Leer","Leere Fläche zum Selbstbauen."]];
 const MAPSIZES=[["s","Klein",32,24],["m","Mittel",44,32],["l","Gross",60,44]];
 const TOOLGROUPS=[["Bauen",[["move","Bewegen"],["room","Raum ziehen"],["road","Strasse ziehen"],["bridge","Brücke ziehen"],["W","Wand"],["G","Glaswand"],["D","Tür"],["B","Dach dunkel"],["R","Dach Konzern"],["U","Dach Wohnhaus"],["y","Dachfläche"]]],
   ["Böden",[["f","Flur"],["o","Büro"],["k","Beton"],["b","Keller"],["n","Club"],["m","Klinik"],["h","Lager"],["r","Strasse"],["s","Gehweg"],["g","Park"],["w","Wasser"]]],
@@ -1832,8 +1832,160 @@ function genCity(w,h,R){
   const start=[];for(let y=0;y<3;y++)for(let x=0;x<3;x++)if(g.gd(x,y)===".")start.push(y*w+x);
   return{g,spawn,start};
 }
-function genMap(type,sizeKey,seed){
-  const [,,w,h]=MAPSIZES.find(s=>s[0]===sizeKey)||MAPSIZES[1],R=mrng(seed);
+/* --- Stadt → Viertel → Einsatzort --- */
+const WIN={city:[5,4,10],district:[9,6,5]};
+const DTYPES={corp:["Konzernzentrum","R"],down:["Innenstadt","o"],night:["Neon-Meile","n"],res:["Wohnblöcke","U"],ind:["Industriegürtel","h"],port:["Hafen","k"],outer:["Randbezirk","b"],green:["Stadtpark","g"]};
+function chash(...n){let h=2166136261;for(const v of n){h^=v|0;h=Math.imul(h,16777619);h^=h>>>13}return h>>>0}
+function vnoise(seed){const R=mrng(seed),N=64,g=Array.from({length:N*N},R),v=(a,b)=>g[((b%N+N)%N)*N+((a%N+N)%N)],s=t=>t*t*(3-2*t);
+  const n=(x,y)=>{const xi=Math.floor(x),yi=Math.floor(y),u=s(x-xi),w=s(y-yi);return (v(xi,yi)*(1-u)+v(xi+1,yi)*u)*(1-w)+(v(xi,yi+1)*(1-u)+v(xi+1,yi+1)*u)*w};
+  return (x,y)=>n(x/14,y/14)*.6+n(x/6,y/6)*.3+n(x/3,y/3)*.1}
+function bres(x0,y0,x1,y1,fn){let dx=Math.abs(x1-x0),dy=-Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1,e=dx+dy;for(let k=0;k<4000;k++){fn(x0,y0);if(x0===x1&&y0===y1)break;const e2=2*e;if(e2>=dy){e+=dy;x0+=sx}if(e2<=dx){e+=dx;y0+=sy}}}
+const COMPASS=["Ost","Südost","Süd","Südwest","West","Nordwest","Nord","Nordost"];
+function genMetro(seed){
+  const w=64,h=48,R=mrng(seed),nz=vnoise(seed^0x9e37),nz2=vnoise(seed^0x51ed),nz3=vnoise(seed^0x2b7f),g=G(w,h,"k");
+  const side=pickOne(["W","E","S","N"]),sd=(x,y)=>side==="W"?x/w:side==="E"?1-x/w:side==="N"?y/h:1-y/h;
+  const wat=new Uint8Array(w*h),I=(x,y)=>y*w+x,inb=(x,y)=>x>=0&&y>=0&&x<w&&y<h;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(sd(x,y)+(nz(x,y)-.5)*.38<.13)wat[I(x,y)]=1;
+  // Fluss vom Hinterland zur Küste
+  const main=side==="W"?[-1,0]:side==="E"?[1,0]:side==="N"?[0,-1]:[0,1],perp=[main[1],main[0]];
+  let rx=side==="W"?w-1:side==="E"?0:ri(R,Math.floor(w*.25),Math.floor(w*.75)),ry=side==="N"?h-1:side==="S"?0:ri(R,Math.floor(h*.25),Math.floor(h*.75)),mom=R()<.5?1:-1;
+  for(let k=0;k<400&&inb(rx,ry);k++){wat[I(rx,ry)]=1;if(R()<.55&&inb(rx+perp[0],ry+perp[1]))wat[I(rx+perp[0],ry+perp[1])]=1;
+    if(k>3&&sd(rx,ry)<.1)break;if(R()<.62){rx+=main[0];ry+=main[1]}else{if(R()<.25)mom=-mom;rx+=perp[0]*mom;ry+=perp[1]*mom}}
+  const land=[];for(let i=0;i<w*h;i++)if(!wat[i])land.push(i);
+  const C0=side==="W"?[w*.4,h*.5]:side==="E"?[w*.6,h*.5]:side==="N"?[w*.5,h*.42]:[w*.5,h*.58];
+  let best=land[0],bd=1e9;land.forEach(i=>{const d=(i%w-C0[0])**2+(Math.floor(i/w)-C0[1])**2;if(d<bd){bd=d;best=i}});
+  const seeds=[[best%w,Math.floor(best/w)]];
+  for(let t=0;t<900&&seeds.length<13;t++){const i=land[Math.floor(R()*land.length)],x=i%w,y=Math.floor(i/w);if(seeds.every(s=>Math.hypot(s[0]-x,s[1]-y)>=8.5))seeds.push([x,y])}
+  const dist=new Int16Array(w*h).fill(-1);
+  land.forEach(i=>{const x=i%w,y=Math.floor(i/w);let b=0,bv=1e9;seeds.forEach((s,k)=>{const v=Math.hypot(s[0]-x,s[1]-y)+nz2(x+k*31,y)*9;if(v<bv){bv=v;b=k}});dist[i]=b});
+  const nearW=s=>{for(let r=1;r<8;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const x=s[0]+dx,y=s[1]+dy;if(inb(x,y)&&wat[I(x,y)])return true}return false};
+  const order=seeds.map((s,k)=>k).sort((a,b)=>Math.hypot(seeds[a][0]-seeds[0][0],seeds[a][1]-seeds[0][1])-Math.hypot(seeds[b][0]-seeds[0][0],seeds[b][1]-seeds[0][1]));
+  const types=Array(seeds.length);let ports=0,green=0;
+  order.forEach((k,rank)=>{types[k]=rank===0?"corp":rank===1?"down":rank===2?"night":nearW(seeds[k])&&ports<2?(ports++%2?"ind":"port"):rank>=seeds.length-3?"outer":!green&&R()<.25?(green=1,"green"):R()<.32?"ind":"res"});
+  const cnt=seeds.map(()=>[0,0,0]);land.forEach(i=>{const d=dist[i];cnt[d][0]+=i%w;cnt[d][1]+=Math.floor(i/w);cnt[d][2]++});
+  const cxs=cnt.map((c,k)=>c[2]?c[0]/c[2]:seeds[k][0]),cys=cnt.map((c,k)=>c[2]?c[1]/c[2]:seeds[k][1]);
+  const used={};const names=types.map((t,k)=>{const base=DTYPES[t][0];if(t==="corp"||t==="down")return base;const a=Math.atan2(cys[k]-seeds[0][1],cxs[k]-seeds[0][0]),c=COMPASS[((Math.round(a/(Math.PI/4))%8)+8)%8];let n=t==="night"||t==="green"?base:base+" "+c;if(used[n])n+=" "+(++used[n]);else used[n]=1;return n});
+  // Grundflächen
+  for(let i=0;i<w*h;i++){const x=i%w,y=Math.floor(i/w);if(wat[i]){g.a[i]="w";continue}const t=types[dist[i]];
+    g.a[i]=t==="outer"?(nz3(x,y)>.62?"g":nz3(x+50,y)>.6?"B":"b"):t==="res"&&nz3(x+90,y+40)>.7?"g":DTYPES[t][1]}
+  // Nebenstrassen: geschwungene Linien pro Bezirk
+  const SP={corp:3,down:3,night:3,res:4,ind:5,port:5,outer:7,green:0};
+  types.forEach((t,d)=>{const sp=SP[t];if(!sp)return;const ox=ri(R,0,sp-1),oy=ri(R,0,sp-1);
+    for(let r=oy;r<h;r+=sp){if(R()<.25)continue;let y=r;for(let x=0;x<w;x++){if(R()<.14)y=clamp(y+(R()<.5?-1:1),r-1,r+1);if(inb(x,y)&&dist[I(x,y)]===d)g.a[I(x,y)]="r"}}
+    for(let c=ox;c<w;c+=sp){if(R()<.25)continue;let x=c;for(let y=0;y<h;y++){if(R()<.14)x=clamp(x+(R()<.5?-1:1),c-1,c+1);if(inb(x,y)&&dist[I(x,y)]===d)g.a[I(x,y)]="r"}}});
+  // Hauptstrassen: Bezirkszentren verbunden (Spannbaum + Schleifen), geschwungen, mit Brücken
+  const inT=[0],edges=[];while(inT.length<seeds.length){let bA=-1,bB=-1,bv=1e9;inT.forEach(a=>seeds.forEach((s,b)=>{if(inT.includes(b))return;const v=Math.hypot(seeds[a][0]-s[0],seeds[a][1]-s[1]);if(v<bv){bv=v;bA=a;bB=b}}));inT.push(bB);edges.push([bA,bB])}
+  for(let k=0;k<3;k++){const a=ri(R,0,seeds.length-1),b=ri(R,0,seeds.length-1);if(a!==b)edges.push([a,b])}
+  edges.forEach(([a,b])=>{const A=seeds[a],B=seeds[b],L=Math.hypot(B[0]-A[0],B[1]-A[1])||1,nx=-(B[1]-A[1])/L,ny=(B[0]-A[0])/L,o1=(R()-.5)*L*.3,o2=(R()-.5)*L*.3;
+    const P=[A,[A[0]+(B[0]-A[0])/3+nx*o1,A[1]+(B[1]-A[1])/3+ny*o1],[A[0]+(B[0]-A[0])*2/3+nx*o2,A[1]+(B[1]-A[1])*2/3+ny*o2],B].map(p=>[clamp(Math.round(p[0]),0,w-1),clamp(Math.round(p[1]),0,h-1)]);
+    for(let s=0;s<3;s++)bres(P[s][0],P[s][1],P[s+1][0],P[s+1][1],(x,y)=>{g.a[I(x,y)]="r"})});
+  const dstr=Array.from(dist,v=>v<0?".":String.fromCharCode(65+v)).join("");
+  return{w,h,type:"metropolis",kind:"city",seed,scale:100,fog:false,tiles:g.a.join(""),deco:g.dd.join(""),spawn:[],start:[],city:{dist:dstr,types,names,cx:cxs.map(v=>+v.toFixed(1)),cy:cys.map(v=>+v.toFixed(1))},links:{}};
+}
+/* Gebäudeformen: L, U, T, Innenhof, Turm mit Sockel, abgeschrägt */
+function shapeCells(kind,sw,sh,R){const q=ri(R,0,3),o=[];for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){const fx=q&1?sw-1-x:x,fy=q&2?sh-1-y:y;let inn=true,core=false,yard=false;
+  if(kind==="L")inn=!(fx>=Math.ceil(sw/2)&&fy<Math.floor(sh/2));
+  else if(kind==="U")inn=!(fx>=Math.floor(sw/3)&&fx<Math.ceil(sw*2/3)&&fy<Math.floor(sh/2));
+  else if(kind==="T")inn=fy<Math.ceil(sh/2)||(fx>=Math.floor(sw/3)&&fx<Math.ceil(sw*2/3));
+  else if(kind==="court"){yard=x>0&&x<sw-1&&y>0&&y<sh-1}
+  else if(kind==="tower")core=x>0&&x<sw-1&&y>0&&y<sh-1;
+  else if(kind==="cut")inn=fx+fy>=Math.min(sw,sh)/2;
+  if(inn)o.push([x,y,core,yard])}return o}
+const LOTS={corp:{n:[1,2],s:[5,8],k:["tower","tower","L","court","cut"],roof:["R"],core:"y",ground:"s"},down:{n:[2,4],s:[3,6],k:["rect","L","T","U","cut"],roof:["y","B","R"],core:"B",ground:"s"},
+  night:{n:[2,3],s:[3,6],k:["rect","L","U","T"],roof:["B","U"],core:"B",ground:"s",neon:1},res:{n:[3,6],s:[2,5],k:["rect","L","court","U"],roof:["U","U","B"],core:"U",ground:"g",yard:"g"},
+  ind:{n:[1,2],s:[5,9],k:["rect","L","rect"],roof:["B"],core:"B",ground:"h",crate:1},port:{n:[0,1],s:[4,7],k:["rect"],roof:["B"],core:"B",ground:"k",cont:1},outer:{n:[0,2],s:[2,4],k:["L","cut","rect"],roof:["B"],core:"B",ground:"b",ruin:1},green:{n:[0,0],s:[2,2],k:["rect"],roof:["U"],ground:"g",park:1}};
+function genDistrict(cd,wx,wy){
+  const [W,H,K]=WIN.city,w=W*K,h=H*K,R=mrng(chash(cd.seed,wx,wy,7)),g=G(w,h,"k"),I=(x,y)=>y*w+x,cw=cd.w,chh=cd.h;
+  const cl=(x,y)=>[clamp(x,0,cw-1),clamp(y,0,chh-1)],ct=(x,y)=>{const [a,b]=cl(x,y);return cd.tiles[b*cw+a]},cty=(x,y)=>{const [a,b]=cl(x,y),c=cd.city.dist[b*cw+a];return c==="."?null:cd.city.types[c.charCodeAt(0)-65]},cnm=(x,y)=>{const [a,b]=cl(x,y),c=cd.city.dist[b*cw+a];return c==="."?"":cd.city.names[c.charCodeAt(0)-65]};
+  const isR=(x,y)=>ct(x,y)==="r",S=cd.seed;
+  const eH=(x,y)=>3+chash(S,x,y,11)%4,eV=(x,y)=>3+chash(S,x,y,13)%4,ctr=(x,y)=>[2+chash(S,x,y,17)%6,2+chash(S,x,y,19)%6];
+  const road=new Uint8Array(w*h),mark=(x,y)=>{if(x>=0&&y>=0&&x<w&&y<h)road[I(x,y)]=1},brush=(x,y)=>{mark(x,y);mark(x+1,y);mark(x,y+1);mark(x+1,y+1)};
+  for(let cy=0;cy<H;cy++)for(let cx=0;cx<W;cx++){const X=wx+cx,Y=wy+cy,ox=cx*K,oy=cy*K,t=ct(X,Y);
+    for(let y=oy;y<oy+K;y++)for(let x=ox;x<ox+K;x++)g.set(x,y,t==="w"?"w":(LOTS[cty(X,Y)]||LOTS.res).ground);
+    if(t!=="r")continue;const [px,py]=ctr(X,Y),c=[ox+px,oy+py],ends=[];
+    if(isR(X+1,Y))ends.push([ox+K-1,oy+eH(X,Y)]);if(isR(X-1,Y))ends.push([ox,oy+eH(X-1,Y)]);if(isR(X,Y+1))ends.push([ox+eV(X,Y),oy+K-1]);if(isR(X,Y-1))ends.push([ox+eV(X,Y-1),oy]);
+    if(!ends.length)ends.push([ox+K-1,c[1]],[ox,c[1]]);
+    ends.forEach(e=>bres(c[0],c[1],e[0],e[1],brush));brush(c[0],c[1])}
+  for(let i=0;i<w*h;i++)if(road[i])g.a[i]="r";
+  const side=new Uint8Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=I(x,y);if(road[i]||g.a[i]==="w")continue;let nr=false;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<w&&yy<h&&road[I(xx,yy)])nr=true}if(nr){g.a[i]="s";side[i]=1}}
+  const bld=new Uint8Array(w*h),spawn=[];
+  for(let cy=0;cy<H;cy++)for(let cx=0;cx<W;cx++){const X=wx+cx,Y=wy+cy,ox=cx*K,oy=cy*K,t=ct(X,Y);if(t==="w")continue;const L=LOTS[cty(X,Y)]||LOTS.res;
+    const free=(x,y)=>x>=ox&&y>=oy&&x<ox+K&&y<oy+K&&!road[I(x,y)]&&!side[I(x,y)]&&g.a[I(x,y)]!=="w"&&!bld[I(x,y)];
+    const gap=(x,y)=>{for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<w&&yy<h&&bld[I(xx,yy)])return false}return true};
+    const n=t==="r"?Math.min(1,ri(R,L.n[0],L.n[1])):ri(R,L.n[0],L.n[1]);
+    for(let b=0,tries=0;b<n&&tries<40;tries++){const sw=ri(R,L.s[0],L.s[1]),sh=ri(R,L.s[0],L.s[1]),bx=ri(R,ox,ox+K-sw),by=ri(R,oy,oy+K-sh),kind=pickOne(L.k),cells=shapeCells(kind,sw,sh,R);
+      if(cells.length<4||!cells.every(([x,y])=>free(bx+x,by+y)&&gap(bx+x,by+y)))continue;const roof=pickOne(L.roof);
+      cells.forEach(([x,y,core,yard])=>{const i=I(bx+x,by+y);bld[i]=1;g.a[i]=yard?(L.yard||"k"):core?(L.core||roof):roof;if(yard)bld[i]=0});
+      if(L.ruin)cells.forEach(([x,y])=>{if(R()<.25){g.a[I(bx+x,by+y)]="b";bld[I(bx+x,by+y)]=0}});
+      if(!L.ruin&&R()<.6)cells.filter(([,, ,yd])=>!yd).slice(0,1).forEach(([x,y])=>{g.sd(bx+x+1,by+y+1,"C")});
+      b++}
+    for(let y=oy;y<oy+K;y++)for(let x=ox;x<ox+K;x++){if(!free(x,y))continue;const r=R();
+      if(L.park){if(r<.18)g.sd(x,y,"L");else if(r<.22)g.a[I(x,y)]="w"}
+      else if(L.cont){if((x+y)%3!==0&&(y%3)!==2&&r<.75)g.sd(x,y,"X")}
+      else if(L.crate){if(r<.12)g.sd(x,y,pickOne(["X","O"]))}
+      else if(L.ruin){if(r<.1)g.sd(x,y,"x");else if(r<.18)g.a[I(x,y)]="g"}
+      else if(L.neon){if(r<.06)g.sd(x,y,"N")}
+      else if(r<.06)g.sd(x,y,"L");
+      if(g.gd(x,y)==="."&&TILES[g.a[I(x,y)]].walk&&R()<.04)spawn.push(I(x,y))}}
+  const start=[];for(let i=0;i<w*h&&start.length<6;i++)if(road[i]&&Math.abs(i%w-w/2)<4&&Math.abs(Math.floor(i/w)-h/2)<4)start.push(i);
+  const nm=cnm(wx+2,wy+2)||"Viertel";
+  return{w,h,type:"district",kind:"district",seed:chash(S,wx,wy),scale:10,fog:false,tiles:g.a.join(""),deco:g.dd.join(""),spawn:pickCells(spawn,24,R),start,distName:nm,dtype:cty(wx+2,wy+2)||"res",links:{}};
+}
+const ROOFT="RBUy";
+function bldComp(m,x,y){const W=m.w,s=new Set(),st=[[x,y]];if(!ROOFT.includes(m.tiles[y*W+x]))return null;
+  while(st.length&&s.size<600){const [a,b]=st.pop(),i=b*W+a;if(a<0||b<0||a>=W||b>=m.h||s.has(i)||!ROOFT.includes(m.tiles[i]))continue;s.add(i);st.push([a+1,b],[a-1,b],[a,b+1],[a,b-1])}return s}
+function genTactical(dm,wx,wy,ww,wh,seed){
+  const K=5,w=ww*K,h=wh*K,R=mrng(seed),g=G(w,h,"k"),I=(x,y)=>y*w+x,D=(x,y)=>{const X=clamp(wx+Math.floor(x/K),0,dm.w-1),Y=clamp(wy+Math.floor(y/K),0,dm.h-1);return Y*dm.w+X};
+  const FL={R:"o",y:"o",U:"f",B:"h"},inB=(x,y)=>x>=0&&y>=0&&x<w&&y<h&&ROOFT.includes(dm.tiles[D(x,y)]);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const t=dm.tiles[D(x,y)];g.a[I(x,y)]=ROOFT.includes(t)?(FL[t]||"f"):t==="."?"k":t}
+  const walls=[];
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){if(!inB(x,y))continue;if(!inB(x+1,y)||!inB(x-1,y)||!inB(x,y+1)||!inB(x,y-1)){g.a[I(x,y)]="W";walls.push([x,y])}}
+  const outside=(x,y)=>x>=0&&y>=0&&x<w&&y<h&&!inB(x,y)&&TILES[g.a[I(x,y)]]&&TILES[g.a[I(x,y)]].walk;
+  // Türen: pro Gebäudeteil mindestens eine, bevorzugt zur Strasse
+  const seen=new Set();
+  walls.forEach(([x,y])=>{const k=Math.floor(x/K)+","+Math.floor(y/K);const st=[[1,0],[-1,0],[0,1],[0,-1]].find(([dx,dy])=>outside(x+dx,y+dy));if(!st)return;
+    const ins=[[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>inB(x+dx,y+dy)&&g.a[I(x+dx,y+dy)]!=="W");if(!ins)return;
+    const lin=(st[0]===0?(x%K):(y%K));
+    if(!seen.has(k)&&lin===2&&R()<.55){seen.add(k);g.a[I(x,y)]="D"}else if(lin%2===0&&R()<.5)g.a[I(x,y)]="G"});
+  // Deko draussen
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const d=dm.deco[D(x,y)],cx=x%K,cy=y%K;if(inB(x,y))continue;
+    if(d==="L"&&cx===2&&cy===2)put(g,x,y,"L");else if(d==="X"&&cx%2===0&&cy<4)put(g,x,y,"X");else if(d==="O"&&cx===1&&cy===1)put(g,x,y,"O");else if(d==="x"&&cx===2&&cy===3)put(g,x,y,"x");else if(d==="N"&&cx===0&&cy===2)put(g,x,y,"N")}
+  for(let y=1;y<h-1;y++)for(let x=1;x<w-2;x++)if(g.a[I(x,y)]==="r"&&g.a[I(x,y-1)]==="r"&&g.a[I(x,y+1)]==="r"&&R()<.012)car(g,x,y,R,R()<.5);
+  const spawn=[],start=[];for(let i=0;i<w*h;i++){const c=g.a[i];if(g.dd[i]!=="."||!TILES[c]||!TILES[c].walk)continue;if("ofh".includes(c)&&R()<.05)spawn.push(i);if((c==="s"||c==="r")&&(i%w<3||Math.floor(i/w)<3)&&start.length<8)start.push(i)}
+  return{w,h,type:"tactical",kind:"tactical",seed,scale:2,fog:true,tiles:g.a.join(""),deco:g.dd.join(""),spawn:pickCells(spawn,20,R),start,links:{}};
+}
+async function openChild(m,cx,cy){
+  const doc=maps[m.id];if(!doc)return;const kind=doc.kind;if(kind!=="city"&&kind!=="district")return;
+  let key,wx,wy,ww,wh,bname="";
+  if(kind==="city"){[ww,wh]=WIN.city;wx=Math.floor(cx/ww)*ww;wy=Math.floor(cy/wh)*wh;key=wx+","+wy}
+  else{const comp=bldComp(doc,cx,cy);
+    if(comp){let x0=1e9,y0=1e9,x1=-1,y1=-1;comp.forEach(i=>{const a=i%doc.w,b=Math.floor(i/doc.w);x0=Math.min(x0,a);y0=Math.min(y0,b);x1=Math.max(x1,a);y1=Math.max(y1,b)});
+      ww=clamp(x1-x0+3,9,14);wh=clamp(y1-y0+3,6,12);wx=clamp(Math.round((x0+x1)/2-ww/2+.5),0,Math.max(0,doc.w-ww));wy=clamp(Math.round((y0+y1)/2-wh/2+.5),0,Math.max(0,doc.h-wh));key="b"+Math.min(...comp);
+      const t=doc.tiles[[...comp][0]];bname=t==="R"?"Konzerngebäude":t==="U"?"Wohnhaus":t==="y"?"Geschäftshaus":"Halle";bname+=` (${(x1-x0+1)*10}×${(y1-y0+1)*10} m)`}
+    else{[ww,wh]=WIN.district;wx=Math.floor(cx/ww)*ww;wy=Math.floor(cy/wh)*wh;key=wx+","+wy}}
+  const ex=doc.links&&doc.links[key];
+  if(ex&&maps[ex]){mapView.id=ex;mapView.z=0;mapView.fitFor=null;mapLocal=null;mapView.zoomPick=false;mapView.sel=null;render();return}
+  let nd;
+  if(kind==="city"){nd=genDistrict({...doc,id:m.id},wx,wy);nd.name=nd.distName+" · Viertel"}
+  else{nd=genTactical(doc,wx,wy,ww,wh,chash(doc.seed,wx,wy,ww,wh,23));nd.name=(bname||"Strasse")+" · "+(doc.distName||"Viertel");nd.distName=doc.distName;nd.dtype=doc.dtype}
+  const id=uid();nd={...nd,parent:m.id,win:[wx,wy,ww,wh],at:Date.now()};maps[id]=nd;doc.links={...(doc.links||{}),[key]:id};
+  mapView.id=id;mapView.z=0;mapView.fitFor=null;mapLocal=null;mapView.zoomPick=false;mapView.sel=null;render();SFX.chrome();
+  try{await db.doc("maps/"+id).set(nd);await write("maps/"+m.id,d=>{if(!d)return null;d.links={...(d.links||{}),[key]:id};return d})}catch(e){toast(errMsg(e))}
+  toast(kind==="city"?"Viertel erstellt. Kehrt ihr hierher zurück, sieht es genau so aus.":bname?"Gebäude geöffnet: Aussenwände, Türen und Fenster stehen, das Innere baust du selbst.":"Einsatzort erstellt und mit dem Viertel verknüpft.");
+}
+function drawCityOverlay(x,m,ox,oy,cs,dm){
+  const doc=maps[m.id]||{};
+  if(m.city&&cs>=4){const c=m.city;x.save();x.textAlign="center";x.textBaseline="middle";const fs=Math.round(clamp(cs*.9,10,18));x.font=`700 ${fs}px "IBM Plex Sans",Arial,sans-serif`;
+    c.names.forEach((n,k)=>{const px=ox+(c.cx[k]+.5)*cs,py=oy+(c.cy[k]+.5)*cs,tw=x.measureText(n).width;x.fillStyle="rgba(15,15,22,.72)";x.fillRect(px-tw/2-6,py-fs*.7,tw+12,fs*1.4);x.fillStyle="#fff";x.fillText(n,px,py+1)});x.restore()}
+  const kind=doc.kind;if(!dm||(kind!=="city"&&kind!=="district"))return;
+  if(mapView.zoomPick&&kind==="city"){const [W,H]=WIN[kind];x.save();x.strokeStyle="rgba(62,240,255,.35)";x.lineWidth=1;for(let gx=0;gx<=m.w;gx+=W){x.beginPath();x.moveTo(ox+gx*cs,oy);x.lineTo(ox+gx*cs,oy+m.h*cs);x.stroke()}for(let gy=0;gy<=m.h;gy+=H){x.beginPath();x.moveTo(ox,oy+gy*cs);x.lineTo(ox+m.w*cs,oy+gy*cs);x.stroke()}x.restore()}
+  Object.entries(doc.links||{}).forEach(([k,id])=>{const ch=maps[id];if(!ch||!ch.win)return;const [wx,wy,W2,H2]=ch.win,W=W2||WIN[kind][0],H=H2||WIN[kind][1];x.save();x.strokeStyle="#3ef0ff";x.lineWidth=2;x.setLineDash([6,4]);x.strokeRect(ox+wx*cs+1,oy+wy*cs+1,W*cs-2,H*cs-2);x.setLineDash([]);
+    x.font='600 11px "IBM Plex Sans",Arial,sans-serif';x.textBaseline="top";const t=ch.name||"",tw=x.measureText(t).width;x.fillStyle="rgba(10,30,40,.85)";x.fillRect(ox+wx*cs+3,oy+wy*cs+3,tw+10,16);x.fillStyle="#3ef0ff";x.fillText(t,ox+wx*cs+8,oy+wy*cs+5);x.restore()});
+}
+
+function genMap(type,sizeKey,seed,wh){
+  const [,,w,h]=wh?[0,0,wh[0],wh[1]]:(MAPSIZES.find(s=>s[0]===sizeKey)||MAPSIZES[1]),R=mrng(seed);
   let res;
   if(type==="empty"){const g=G(w,h,"k");res={g,spawn:[],start:[0,1,w,w+1]}}
   else res=({building:()=>genBuilding(w,h,R,"mixed"),office:()=>genBuilding(w,h,R,"office"),bunker:()=>genBunker(w,h,R),cellar:()=>genCellar(w,h,R),warehouse:()=>genWarehouse(w,h,R),club:()=>genClub(w,h,R),street:()=>genStreet(w,h,R),city:()=>genCity(w,h,R)}[type]||(()=>genBuilding(w,h,R,"mixed")))();
@@ -1982,7 +2134,7 @@ function mapToolsHtml(){
   const dm=isDM(),m=curMap(),list=Object.entries(maps).sort((a,b)=>(b[1].at||0)-(a[1].at||0));
   if(!dm)return m?`<div class="row" style="justify-content:space-between"><h2>${esc(m.name||"Karte")}${levelList(maps[m.id]).length>1?` <span class="tag">${esc(m.lvName||"")}</span>`:""}</h2><span class="muted" style="font-size:13px">Zieh deine Figur. Türen öffnest du durch Antippen, wenn du direkt daneben stehst. Auf einer Treppe wechselst du die Ebene.</span></div>`:"";
   return `<div class="row" style="justify-content:space-between;align-items:end"><div class="row" style="align-items:end">
-      ${list.length?`<div class="field" style="min-width:180px"><label class="label" for="map-sel">Karte</label><select id="map-sel">${list.map(([id,x])=>`<option value="${id}" ${id===(m&&m.id)?"selected":""}>${esc(x.name||"Karte")}${id===mapState.active?" · live":""}</option>`).join("")}</select></div>${m?`<div class="field" style="min-width:120px"><label class="label" for="map-scale">Massstab</label><select id="map-scale">${SCALES.map(([v,l])=>`<option value="${v}" ${v===mapScale(m.id)?"selected":""}>${l} · 1 Feld = ${v} m</option>`).join("")}${SCALES.some(s=>s[0]===mapScale(m.id))?"":`<option value="${mapScale(m.id)}" selected>Eigener · 1 Feld = ${mapScale(m.id)} m</option>`}</select></div>`:""}`:""}
+      ${list.length?`<div class="field" style="min-width:180px"><label class="label" for="map-sel">Karte</label><select id="map-sel">${list.map(([id,x])=>`<option value="${id}" ${id===(m&&m.id)?"selected":""}>${esc(x.name||"Karte")}${id===mapState.active?" · live":""}</option>`).join("")}</select></div>${m?`<div class="field" style="min-width:120px"><label class="label" for="map-scale">Massstab</label><select id="map-scale" ${maps[m.id]&&maps[m.id].kind?"disabled title=\"Fest für diese Kartenart\"":""}>${SCALES.map(([v,l])=>`<option value="${v}" ${v===mapScale(m.id)?"selected":""}>${l} · 1 Feld = ${v} m</option>`).join("")}${SCALES.some(s=>s[0]===mapScale(m.id))?"":`<option value="${mapScale(m.id)}" selected>Eigener · 1 Feld = ${mapScale(m.id)} m</option>`}</select></div>`:""}${m&&maps[m.id]&&(maps[m.id].kind==="city"||maps[m.id].kind==="district")?`<button class="btn small ${mapView.zoomPick?"primary":""}" data-act="mzoompick" aria-pressed="${!!mapView.zoomPick}">${mapView.zoomPick?(maps[m.id].kind==="city"?"Tippe auf ein Viertel …":"Tippe auf ein Gebäude oder eine Strasse …"):maps[m.id].kind==="city"?"Viertel öffnen":"Gebäude öffnen"}</button>`:""}${m&&maps[m.id]&&maps[m.id].parent&&maps[maps[m.id].parent]?`<button class="btn small" data-act="mparent">↑ ${esc(maps[maps[m.id].parent].name||"Zurück")}</button>`:""}`:""}
       <button class="btn ${mapView.gen?"":"primary"}" data-act="mgen">${mapView.gen?"Generator schliessen":"Neue Karte"}</button></div>
     ${m?`<div class="row">${mapState.active===m.id?'<span class="chip you">Spieler sehen diese Karte</span>':`<button class="btn small primary" data-act="mlive">Den Spielern zeigen</button>`}<button class="btn small" data-act="medit" aria-pressed="${mapView.edit}">${mapView.edit?"Bearbeiten beenden":"Bearbeiten"}</button><button class="btn small" data-act="mprev" aria-pressed="${mapView.preview}">${mapView.preview?"DM-Ansicht":"Spieleransicht"}</button></div>`:""}</div>
   ${m?`<div class="row" style="gap:8px;align-items:center"><span class="label">Ebene</span><div class="seg">${levelList(maps[m.id]).map(l=>`<button data-act="mlvl" data-d="${l.z}" aria-pressed="${l.z===m.z}">${esc(l.name)}</button>`).join("")}</div>
@@ -2058,6 +2210,7 @@ function drawMapNow(){
     for(let cy=y0;cy<=y1;cy++)for(let cx=x0;cx<=x1;cx++){const d=m.deco[cy*m.w+cx];if(!CONN.includes(d))continue;const i=cy*m.w+cx;if(!dm&&F.vis&&!F.vis.has(i)&&!(F.ex&&F.ex.has(i)))continue;
       const txt=connLabel(m,cx,cy),tw=x.measureText(txt).width,bx0=ox+(cx+1)*cs+2,bx=bx0+tw+12>W-4?ox+cx*cs-tw-14:bx0,by=oy+(cy+.5)*cs,hh=Math.round(clamp(cs*.34,10,14))+8;
       x.fillStyle="rgba(20,20,26,.86)";x.fillRect(bx,by-hh/2,tw+12,hh);x.fillStyle=d==="J"?"#7fb3e6":d==="H"?"#e3b62c":"#e6e6e6";x.fillRect(bx,by-hh/2,3,hh);x.fillStyle="#fff";x.fillText(txt,bx+7,by+1)}}
+  drawCityOverlay(x,m,ox,oy,cs,dm);
   const cur=combat.active?(combat.order||[])[combat.turn]:null;
   lvTokens(m).forEach(t=>{
     const i=t.y*m.w+t.x;if(!dm&&(t.hidden||(t.kind==="npc"&&F.vis&&!F.vis.has(i))))return;
@@ -2183,6 +2336,7 @@ document.addEventListener("pointerdown",e=>{
   if(mptr.size===2){const p=[...mptr.values()];mact={kind:"pinch",d:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y),z:mapView.zoom,ox:mapView.ox,oy:mapView.oy,mx:(p[0].x+p[1].x)/2,my:(p[0].y+p[1].y)/2};return}
   if(e.button===2){e.preventDefault();ptrStart(e);return}
   const [cx,cy,lx,ly]=cellAt(e),tool=mapView.tool,dmEdit=isDM()&&mapView.edit&&!mapView.preview;
+  if(isDM()&&mapView.zoomPick&&!mapView.preview){if(cx>=0&&cy>=0&&cx<m.w&&cy<m.h)openChild(m,cx,cy);mact=null;return}
   if(isDM()&&mapView.place&&!mapView.preview){const f=FOES.find(x=>x.k===mapView.place);if(f&&cx>=0&&cy>=0&&cx<m.w&&cy<m.h){const F=foeStats(f,0);addFoeToken(m,{...F,base:f.n},cy*m.w+cx,nextFoeName(f.n)).then(()=>SFX.click()).catch(er=>toast(errMsg(er)));drawMap()}mact=null;return}
   if(dmEdit&&tool!=="move"){const em=editMap();
     if(tool==="room"||tool==="road"||tool==="bridge"){mact={kind:tool==="room"?"rect":tool,a:[cx,cy],b:[cx,cy]};drawMap();return}
@@ -2485,13 +2639,15 @@ document.addEventListener("click",async e=>{
   else if(a==="mme"){const m=curMap(),t=m&&mapTokens(m.id).find(t=>t.ref&&t.ref===myCid());if(!t){toast("Deine Figur ist nicht auf der Karte.");return}const cv=$("#mapCanvas"),cs=28*mapView.zoom;mapView.ox=cv.clientWidth/2-(t.x+.5)*cs;mapView.oy=cv.clientHeight/2-(t.y+.5)*cs;drawMap()}
   else if(a==="mgen"){mapView.gen=!mapView.gen;render()}
   else if(a==="mgtype"){mapView.gtype=b.dataset.k;render()}
+  else if(a==="mzoompick"){mapView.zoomPick=!mapView.zoomPick;mapView.place=null;render();drawMap()}
+  else if(a==="mparent"){const d=maps[curMapId()];if(d&&d.parent&&maps[d.parent]){mapView.id=d.parent;mapView.z=0;mapView.fitFor=null;mapLocal=null;mapView.zoomPick=false;mapView.sel=null;render()}}
   else if(a==="mgsize"){mapView.gsize=b.dataset.k;render()}
-  else if(a==="mcreate"){const g=genMap(mapView.gtype,mapView.gsize,Math.floor(Math.random()*1e9)),id=uid();
-    const doc={name:(MAPTYPES.find(t=>t[0]===mapView.gtype)||["","Karte"])[1]+" "+(Object.keys(maps).length+1),...g,fog:true,scale:mapView.gtype==="city"?10:2,at:Date.now()};
+  else if(a==="mcreate"){const sd=Math.floor(Math.random()*1e9),g=mapView.gtype==="metropolis"?genMetro(sd):genMap(mapView.gtype,mapView.gsize,sd),id=uid();
+    const doc={name:mapView.gtype==="metropolis"?"Stadt "+(Object.keys(maps).filter(k=>maps[k].kind==="city").length+1):(MAPTYPES.find(t=>t[0]===mapView.gtype)||["","Karte"])[1]+" "+(Object.keys(maps).length+1),fog:true,scale:mapView.gtype==="city"?10:2,...g,at:Date.now()};
     maps[id]=doc;mapView.id=id;mapView.gen=false;mapView.fitFor=null;mapLocal=null;
     try{await db.doc("maps/"+id).set(doc);if(!mapState.active||!maps[mapState.active])await write("game/map",x=>({...(x||{}),active:id}))}catch(e){toast(errMsg(e))}
     SFX.chrome();render()}
-  else if(a==="mreroll"){const m=curMap();if(!m)return;const sz=(MAPSIZES.find(x=>x[2]===m.w)||MAPSIZES[1])[0],g=genMap(m.type,sz,Math.floor(Math.random()*1e9));
+  else if(a==="mreroll"){const m=curMap();if(!m)return;if(maps[m.id]&&maps[m.id].kind){toast("Stadt-, Viertel- und Einsatzkarten bleiben fest, damit ihr an denselben Ort zurückkehren könnt. Leg dafür eine neue Stadt an.");return}const sz=(MAPSIZES.find(x=>x[2]===m.w)||MAPSIZES[1])[0],g=genMap(m.type,sz,Math.floor(Math.random()*1e9));
     mapLocal={...m,...g,id:m.id};saveMapNow();const tk=mapTokens(m.id);let k=0;
     for(const t of tk){if(t.kind==="pc"){const i=g.start[k++%Math.max(1,g.start.length)]||0;tokens[t.id]={...tokens[t.id],x:i%g.w,y:Math.floor(i/g.w)};await db.doc("tokens/"+t.id).set(tokens[t.id])}else{await db.doc("tokens/"+t.id).delete();delete tokens[t.id]}}
     mapView.fitFor=null;SFX.chrome();render()}
