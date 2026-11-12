@@ -1845,6 +1845,8 @@ function vnoise(seed){const R=mrng(seed),N=64,g=Array.from({length:N*N},R),v=(a,
   return (x,y)=>n(x/14,y/14)*.6+n(x/6,y/6)*.3+n(x/3,y/3)*.1}
 function bres(x0,y0,x1,y1,fn){let dx=Math.abs(x1-x0),dy=-Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1,e=dx+dy;for(let k=0;k<4000;k++){fn(x0,y0);if(x0===x1&&y0===y1)break;const e2=2*e;if(e2>=dy){e+=dy;x0+=sx}if(e2<=dx){e+=dx;y0+=sy}}}
 const COMPASS=["Ost","Südost","Süd","Südwest","West","Nordwest","Nord","Nordost"];
+const FLOORS_OF={corp:[18,70],down:[6,26],night:[2,9],res:[4,16],ind:[1,3],port:[1,2],outer:[1,3],green:[0,0]};
+const encF=f=>String.fromCharCode(48+clamp(Math.round(f),0,74)),decF=c=>c?Math.max(0,c.charCodeAt(0)-48):0;
 function genMetro(seed){
   const w=120,h=90,R=mrng(seed),nz=vnoise(seed^0x9e37),nz2=vnoise(seed^0x51ed),nz3=vnoise(seed^0x2b7f),g=G(w,h,"k");
   const side=pickOne(["W","E","S","N"]),sd=(x,y)=>side==="W"?x/w:side==="E"?1-x/w:side==="N"?y/h:1-y/h;
@@ -1878,13 +1880,15 @@ function genMetro(seed){
     for(let r=oy;r<h;r+=sp){if(R()<.25)continue;let y=r;for(let x=0;x<w;x++){if(R()<.14)y=clamp(y+(R()<.5?-1:1),r-1,r+1);if(inb(x,y)&&dist[I(x,y)]===d)g.a[I(x,y)]="r"}}
     for(let c=ox;c<w;c+=sp){if(R()<.25)continue;let x=c;for(let y=0;y<h;y++){if(R()<.14)x=clamp(x+(R()<.5?-1:1),c-1,c+1);if(inb(x,y)&&dist[I(x,y)]===d)g.a[I(x,y)]="r"}}});
   // Hauptstrassen: Bezirkszentren verbunden (Spannbaum + Schleifen), geschwungen, mit Brücken
+  const art=new Uint8Array(w*h);
   const inT=[0],edges=[];while(inT.length<seeds.length){let bA=-1,bB=-1,bv=1e9;inT.forEach(a=>seeds.forEach((s,b)=>{if(inT.includes(b))return;const v=Math.hypot(seeds[a][0]-s[0],seeds[a][1]-s[1]);if(v<bv){bv=v;bA=a;bB=b}}));inT.push(bB);edges.push([bA,bB])}
   for(let k=0;k<3;k++){const a=ri(R,0,seeds.length-1),b=ri(R,0,seeds.length-1);if(a!==b)edges.push([a,b])}
   edges.forEach(([a,b])=>{const A=seeds[a],B=seeds[b],L=Math.hypot(B[0]-A[0],B[1]-A[1])||1,nx=-(B[1]-A[1])/L,ny=(B[0]-A[0])/L,o1=(R()-.5)*L*.3,o2=(R()-.5)*L*.3;
     const P=[A,[A[0]+(B[0]-A[0])/3+nx*o1,A[1]+(B[1]-A[1])/3+ny*o1],[A[0]+(B[0]-A[0])*2/3+nx*o2,A[1]+(B[1]-A[1])*2/3+ny*o2],B].map(p=>[clamp(Math.round(p[0]),0,w-1),clamp(Math.round(p[1]),0,h-1)]);
-    for(let s=0;s<3;s++)bres(P[s][0],P[s][1],P[s+1][0],P[s+1][1],(x,y)=>{g.a[I(x,y)]="r"})});
+    for(let s=0;s<3;s++)bres(P[s][0],P[s][1],P[s+1][0],P[s+1][1],(x,y)=>{g.a[I(x,y)]="r";art[I(x,y)]=1})});
   const dstr=Array.from(dist,v=>v<0?".":String.fromCharCode(65+v)).join("");
-  return{w,h,type:"metropolis",kind:"city",seed,scale:50,fog:false,tiles:g.a.join(""),deco:g.dd.join(""),spawn:[],start:[],city:{win:WIN.city,dist:dstr,types,names,cx:cxs.map(v=>+v.toFixed(1)),cy:cys.map(v=>+v.toFixed(1))},links:{}};
+  const ht=Array.from({length:w*h},(_,i)=>{const c=g.a[i];if(dist[i]<0||c==="r"||c==="w"||c==="g"||c==="b")return "0";const t=types[dist[i]],[a,b]=FLOORS_OF[t]||[1,3],x=i%w,y=Math.floor(i/w),near=Math.max(0,1-Math.hypot(x-cxs[dist[i]],y-cys[dist[i]])/14);return encF(a+(b-a)*(near*.7+nz3(x*3,y*3)*.5))}).join("");
+  return{w,h,type:"metropolis",kind:"city",seed,scale:50,fog:false,tiles:g.a.join(""),deco:g.dd.join(""),spawn:[],start:[],ht,art:Array.from(art).join(""),city:{win:WIN.city,dist:dstr,types,names,cx:cxs.map(v=>+v.toFixed(1)),cy:cys.map(v=>+v.toFixed(1))},links:{}};
 }
 /* Gebäudeformen: L, U, T, Innenhof, Turm mit Sockel, abgeschrägt */
 function shapeCells(kind,sw,sh,R){const q=ri(R,0,3),o=[];for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){const fx=q&1?sw-1-x:x,fy=q&2?sh-1-y:y;let inn=true,core=false,yard=false;
@@ -1913,7 +1917,7 @@ function genDistrict(cd,wx,wy){
   for(let i=0;i<w*h;i++)if(road[i])g.a[i]="r";
   const side=new Uint8Array(w*h);
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=I(x,y);if(road[i]||g.a[i]==="w")continue;let nr=false;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<w&&yy<h&&road[I(xx,yy)])nr=true}if(nr){g.a[i]="s";side[i]=1}}
-  const bld=new Uint8Array(w*h),spawn=[],typeAt=(x,y)=>cty(wx+Math.floor(x/K),wy+Math.floor(y/K))||"res";
+  const bld=new Uint8Array(w*h),bid=new Int32Array(w*h).fill(-1),blist=[],spawn=[],typeAt=(x,y)=>cty(wx+Math.floor(x/K),wy+Math.floor(y/K))||"res";
   const open=(x,y)=>x>=0&&y>=0&&x<w&&y<h&&!road[I(x,y)]&&!side[I(x,y)]&&g.a[I(x,y)]!=="w";
   const reg=new Int32Array(w*h).fill(-1),regs=[];
   for(let i0=0;i0<w*h;i0++){const x0=i0%w,y0=Math.floor(i0/w);if(reg[i0]>=0||!open(x0,y0))continue;const cells=[],st=[i0];reg[i0]=regs.length;
@@ -1923,9 +1927,12 @@ function genDistrict(cd,wx,wy){
     const free=(x,y)=>x>=0&&y>=0&&x<w&&y<h&&reg[I(x,y)]===ri0&&!bld[I(x,y)];
     const gap=(x,y)=>{for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<w&&yy<h&&bld[I(xx,yy)])return false}return true};
     const avg=(L.s[0]+L.s[1])/2,n=L.n[1]===0?0:Math.max(L.n[0],Math.round(cells.length/(avg*avg*1.9)*(L.n[1]/3+.4)));
-    for(let b=0,tries=0;b<n&&tries<n*30+20;tries++){const sw=ri(R,L.s[0],L.s[1]),sh=ri(R,L.s[0],L.s[1]);if(x1-x0+1<sw||y1-y0+1<sh)continue;const bx=ri(R,x0,x1-sw+1),by=ri(R,y0,y1-sh+1),kind=pickOne(L.k),cl=shapeCells(kind,sw,sh,R);
-      if(cl.length<4||!cl.every(([x,y])=>free(bx+x,by+y)&&gap(bx+x,by+y)))continue;const roof=pickOne(L.roof);
-      cl.forEach(([x,y,core,yard])=>{const i=I(bx+x,by+y);bld[i]=1;g.a[i]=yard?(L.yard||"k"):core?(L.core||roof):roof;if(yard)bld[i]=0});
+    const tp=typeAt(c0%w,Math.floor(c0/w)),FR=FLOORS_OF[tp]||[1,3];let megaTry=(tp==="res"||tp==="corp"||tp==="down")&&x1-x0>=12&&y1-y0>=12&&R()<.45;
+    for(let b=0,tries=0;b<n&&tries<n*30+20;tries++){const mega=megaTry&&tries<12;const sw=mega?ri(R,11,Math.min(16,x1-x0+1)):ri(R,L.s[0],L.s[1]),sh=mega?ri(R,11,Math.min(16,y1-y0+1)):ri(R,L.s[0],L.s[1]);if(x1-x0+1<sw||y1-y0+1<sh)continue;const bx=ri(R,x0,x1-sw+1),by=ri(R,y0,y1-sh+1),kind=mega?pickOne(["court","U","rect","court"]):pickOne(L.k),cl=shapeCells(kind,sw,sh,R);
+      if(cl.length<4||!cl.every(([x,y])=>free(bx+x,by+y)&&gap(bx+x,by+y)))continue;const roof=mega?(tp==="res"?"U":"R"):pickOne(L.roof);if(mega)megaTry=false;
+      const fl=mega?(tp==="res"?ri(R,25,45):ri(R,50,74)):ri(R,FR[0],FR[1])+(kind==="tower"?ri(R,8,20):0),bs=tp==="corp"?ri(R,1,3):tp==="down"||mega?ri(R,0,2):R()<.35?1:0,id=blist.length;
+      blist.push({f:Math.min(fl,74),b:bs,mega,cells:[]});
+      cl.forEach(([x,y,core,yard])=>{const i=I(bx+x,by+y);bld[i]=1;g.a[i]=yard?(L.yard||"k"):core?(L.core||roof):roof;if(yard)bld[i]=0;else{bid[i]=id;blist[id].cells.push(i)}});
       if(L.ruin)cl.forEach(([x,y])=>{if(R()<.25){g.a[I(bx+x,by+y)]="b";bld[I(bx+x,by+y)]=0}});
       if(!L.ruin&&R()<.6&&sw>2&&sh>2)g.sd(bx+1,by+1,"C");b++}
     cells.forEach(i=>{const x=i%w,y=Math.floor(i/w);if(bld[i]||g.dd[i]!==".")return;const r=R();
@@ -1937,8 +1944,17 @@ function genDistrict(cd,wx,wy){
       else if(r<.06)g.sd(x,y,"L");
       if(g.dd[i]==="."&&TILES[g.a[i]]&&TILES[g.a[i]].walk&&R()<.04)spawn.push(i)})});
   const start=[];for(let i=0;i<w*h&&start.length<6;i++)if(road[i]&&Math.abs(i%w-w/2)<4&&Math.abs(Math.floor(i/w)-h/2)<4)start.push(i);
+  // Höhen, Gebäudedaten, Skywalks
+  const ht=new Array(w*h).fill("0"),blds={};
+  blist.forEach((b,id)=>{const live=b.cells.filter(i=>bid[i]===id&&ROOFT.includes(g.a[i]));if(!live.length)return;live.forEach(i=>ht[i]=encF(b.f));blds["b"+Math.min(...live)]=[b.f,b.b,b.mega?1:0]});
+  const walks=[],pairs=new Set();
+  for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const i=I(x,y),a=bid[i];if(a<0||blist[a].f<5)continue;
+    for(const [dx,dy] of [[1,0],[0,1]]){let k=1;while(k<10&&x+dx*k<w&&y+dy*k<h&&bid[I(x+dx*k,y+dy*k)]<0)k++;if(k<3||k>9)continue;const xe=x+dx*k,ye=y+dy*k;if(xe>=w||ye>=h)continue;const b2=bid[I(xe,ye)];
+      if(b2<0||b2===a||blist[b2].f<5)continue;const key=Math.min(a,b2)+"-"+Math.max(a,b2);if(pairs.has(key)||R()>.35)continue;pairs.add(key);
+      walks.push([x+dx,y+dy,dx,dy,k-1,ri(R,3,Math.max(3,Math.min(blist[a].f,blist[b2].f)-1))])}}
+  if(walks.length>8)walks.length=8;
   const nm=cnm(wx+Math.floor(W/2),wy+Math.floor(H/2))||"Viertel";
-  return{w,h,type:"district",kind:"district",seed:chash(S,wx,wy),scale:10,fog:false,tiles:g.a.join(""),deco:g.dd.join(""),spawn:pickCells(spawn,24,R),start,distName:nm,dtype:cty(wx+Math.floor(W/2),wy+Math.floor(H/2))||"res",links:{}};
+  return{w,h,type:"district",kind:"district",seed:chash(S,wx,wy),scale:10,fog:false,tiles:g.a.join(""),deco:g.dd.join(""),spawn:pickCells(spawn,24,R),start,distName:nm,dtype:cty(wx+Math.floor(W/2),wy+Math.floor(H/2))||"res",links:{},ht:ht.join(""),blds,walks};
 }
 const ROOFT="RBUy";
 function bldComp(m,x,y){const W=m.w,s=new Set(),st=[[x,y]];if(!ROOFT.includes(m.tiles[y*W+x]))return null;
@@ -1965,25 +1981,28 @@ function genTactical(dm,wx,wy,ww,wh,seed){
 }
 async function openChild(m,cx,cy){
   const doc=maps[m.id];if(!doc)return;const kind=doc.kind;if(kind!=="city"&&kind!=="district")return;
-  let key,wx,wy,ww,wh,bname="";
+  let key,wx,wy,ww,wh,bname="",binfo=null;
   if(kind==="city"){[ww,wh]=cityWin(doc);wx=Math.floor(cx/ww)*ww;wy=Math.floor(cy/wh)*wh;key=wx+","+wy}
   else{const comp=bldComp(doc,cx,cy);
     if(comp){let x0=1e9,y0=1e9,x1=-1,y1=-1;comp.forEach(i=>{const a=i%doc.w,b=Math.floor(i/doc.w);x0=Math.min(x0,a);y0=Math.min(y0,b);x1=Math.max(x1,a);y1=Math.max(y1,b)});
       ww=clamp(x1-x0+3,9,14);wh=clamp(y1-y0+3,6,12);wx=clamp(Math.round((x0+x1)/2-ww/2+.5),0,Math.max(0,doc.w-ww));wy=clamp(Math.round((y0+y1)/2-wh/2+.5),0,Math.max(0,doc.h-wh));key="b"+Math.min(...comp);
-      const t=doc.tiles[[...comp][0]];bname=t==="R"?"Konzerngebäude":t==="U"?"Wohnhaus":t==="y"?"Geschäftshaus":"Halle";bname+=` (${(x1-x0+1)*10}×${(y1-y0+1)*10} m)`}
+      const t=doc.tiles[[...comp][0]],bi=(doc.blds||{})[key];binfo=bi||null;bname=bi&&bi[2]?"Megabuilding":t==="R"?((bi&&bi[0]>=20)?"Wolkenkratzer":"Konzerngebäude"):t==="U"?"Wohnhaus":t==="y"?"Geschäftshaus":"Halle";bname+=` (${(x1-x0+1)*10}×${(y1-y0+1)*10} m${bi?", "+bi[0]+(bi[0]===1?" Etage":" Etagen"):""})`}
     else{[ww,wh]=WIN.district;wx=Math.floor(cx/ww)*ww;wy=Math.floor(cy/wh)*wh;key=wx+","+wy}}
   const ex=doc.links&&doc.links[key];
   if(ex&&maps[ex]){mapView.id=ex;mapView.z=0;mapView.fitFor=null;mapLocal=null;mapView.zoomPick=false;mapView.sel=null;render();return}
   let nd;
   if(kind==="city"){nd=genDistrict({...doc,id:m.id},wx,wy);nd.name=nd.distName+" · Viertel"}
-  else{nd=genTactical(doc,wx,wy,ww,wh,chash(doc.seed,wx,wy,ww,wh,23));nd.name=(bname||"Strasse")+" · "+(doc.distName||"Viertel");nd.distName=doc.distName;nd.dtype=doc.dtype}
+  else{nd=genTactical(doc,wx,wy,ww,wh,chash(doc.seed,wx,wy,ww,wh,23));nd.name=(bname||"Strasse")+" · "+(doc.distName||"Viertel");nd.distName=doc.distName;nd.dtype=doc.dtype;if(mapView.autoInt!==false)fillInterior(nd,doc.dtype,mrng(chash(nd.seed,5)));
+    if(binfo){const up=Math.min(Math.max(0,binfo[0]-1),5);for(let k=0;k<up;k++)nd=addLevel(nd,"upper").doc;if(binfo[0]>1)nd=addLevel(nd,"roof").doc;for(let k=0;k<Math.min(binfo[1],2);k++)nd=addLevel(nd,"basement").doc;nd.floors=binfo[0];nd.basements=binfo[1]}}
   const id=uid();nd={...nd,parent:m.id,win:[wx,wy,ww,wh],at:Date.now()};maps[id]=nd;doc.links={...(doc.links||{}),[key]:id};
   mapView.id=id;mapView.z=0;mapView.fitFor=null;mapLocal=null;mapView.zoomPick=false;mapView.sel=null;render();SFX.chrome();
   try{await db.doc("maps/"+id).set(nd);await write("maps/"+m.id,d=>{if(!d)return null;d.links={...(d.links||{}),[key]:id};return d})}catch(e){toast(errMsg(e))}
-  toast(kind==="city"?"Viertel erstellt. Kehrt ihr hierher zurück, sieht es genau so aus.":bname?"Gebäude geöffnet: Aussenwände, Türen und Fenster stehen, das Innere baust du selbst.":"Einsatzort erstellt und mit dem Viertel verknüpft.");
+  toast(kind==="city"?"Viertel erstellt. Kehrt ihr hierher zurück, sieht es genau so aus.":bname?(mapView.autoInt!==false?"Gebäude geöffnet und eingerichtet. Mit „Innen leeren“ baust du es selbst.":"Gebäude geöffnet: Aussenwände, Türen und Fenster stehen, das Innere baust du selbst."):"Einsatzort erstellt und mit dem Viertel verknüpft.");
 }
 function drawCityOverlay(x,m,ox,oy,cs,dm){
   const doc=maps[m.id]||{};
+  if(!m.z)(m.walks||[]).forEach(([wx0,wy0,dx,dy,len,fl])=>{const px=ox+wx0*cs,py=oy+wy0*cs,W=dx?len*cs:cs,H=dy?len*cs:cs;x.save();x.fillStyle="rgba(120,220,255,.35)";x.fillRect(px,py,W,H);x.strokeStyle="#3ef0ff";x.setLineDash([4,3]);x.lineWidth=1.5;x.strokeRect(px+.5,py+.5,W-1,H-1);x.setLineDash([]);
+    if(cs>=9){x.font=`600 ${Math.round(clamp(cs*.45,8,11))}px "IBM Plex Sans",Arial,sans-serif`;x.fillStyle="#e8fbff";x.textAlign="center";x.textBaseline="middle";x.fillText("Skywalk "+fl+". OG",px+W/2,py+H/2)}x.restore()});
   if(m.city&&cs>=4){const c=m.city;x.save();x.textAlign="center";x.textBaseline="middle";const fs=Math.round(clamp(cs*.9,10,18));x.font=`700 ${fs}px "IBM Plex Sans",Arial,sans-serif`;
     c.names.forEach((n,k)=>{const px=ox+(c.cx[k]+.5)*cs,py=oy+(c.cy[k]+.5)*cs,tw=x.measureText(n).width;x.fillStyle="rgba(15,15,22,.72)";x.fillRect(px-tw/2-6,py-fs*.7,tw+12,fs*1.4);x.fillStyle="#fff";x.fillText(n,px,py+1)});x.restore()}
   const kind=doc.kind;if(!dm||(kind!=="city"&&kind!=="district"))return;
@@ -2006,8 +2025,11 @@ const decoAt=(m,x,y)=>x<0||y<0||x>=m.w||y>=m.h||!m.deco?".":m.deco[y*m.w+x];
 const blocks=(m,x,y)=>{const c=tileAt(m,x,y);if(c==="."&&m.z>0&&x>=0&&y>=0&&x<m.w&&y<m.h)return false;const t=TILES[c];return !t||t.block};
 const walkable=(m,x,y)=>{const t=TILES[tileAt(m,x,y)],d=DECO[decoAt(m,x,y)];return !!(t&&t.walk)&&!(d&&d.solid)};
 function los(m,x0,y0,x1,y1){let dx=Math.abs(x1-x0),dy=-Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1,err=dx+dy,x=x0,y=y0;
-  while(!(x===x1&&y===y1)){if(!(x===x0&&y===y0)&&blocks(m,x,y))return false;const e2=2*err;if(e2>=dy){err+=dy;x+=sx}if(e2<=dx){err+=dx;y+=sy}}return true}
-function visibleSet(m,srcs,R=12){const v=new Set();for(const [sx,sy] of srcs){for(let y=sy-R;y<=sy+R;y++)for(let x=sx-R;x<=sx+R;x++){if(x<0||y<0||x>=m.w||y>=m.h||(x-sx)**2+(y-sy)**2>R*R)continue;if(los(m,sx,sy,x,y)||los(m,x,y,sx,sy))v.add(y*m.w+x)}}return v}
+  while(!(x===x1&&y===y1)){if(!(x===x0&&y===y0)&&blocks(m,x,y))return false;const e2=2*err,mx=e2>=dy,my=e2<=dx;
+    if(mx&&my&&!(x===x0&&y===y0&&x+sx===x1&&y+sy===y1)&&(blocks(m,x+sx,y)||blocks(m,x,y+sy)))return false;
+    if(mx){err+=dy;x+=sx}if(my){err+=dx;y+=sy}}return true}
+function visibleSet(m,srcs,R=12){const v=new Set();for(const [sx,sy] of srcs){for(let y=sy-R;y<=sy+R;y++)for(let x=sx-R;x<=sx+R;x++){if(x<0||y<0||x>=m.w||y>=m.h||(x-sx)**2+(y-sy)**2>R*R)continue;if(los(m,sx,sy,x,y)||los(m,x,y,sx,sy))v.add(y*m.w+x)}}
+  const add=[];v.forEach(i=>{const x=i%m.w,y=Math.floor(i/m.w);if(blocks(m,x,y))return;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<m.w&&yy<m.h&&blocks(m,xx,yy))add.push(yy*m.w+xx)}});add.forEach(i=>v.add(i));return v}
 /* Daten */
 const curMapId=()=>isDM()&&mapView.id&&maps[mapView.id]?mapView.id:(mapState.active&&maps[mapState.active]?mapState.active:(isDM()?(Object.keys(maps)[0]||null):null));
 function curMap(){const id=curMapId();if(!id)return null;const z=viewZ(id);if(mapLocal&&mapLocal.id===id&&mapLocal.z===z)return mapLocal;return levelMap(id,z)}
@@ -2024,12 +2046,12 @@ const lvTokens=m=>mapTokens(m.id).filter(t=>(t.z||0)===m.z);
 const mapTokens=id=>Object.entries(tokens).filter(([,t])=>t.map===id).map(([k,t])=>({...t,id:k}));
 function pcSources(m){return lvTokens(m).filter(t=>t.kind==="pc").map(t=>[t.x,t.y])}
 function fogFor(m){
-  if(m.fog===false&&!mapView.preview)return {vis:null};
+  const kd=maps[m.id]&&maps[m.id].kind,soft=kd==="district";if(kd==="city"||(!soft&&m.fog===false&&!mapView.preview))return {vis:null};
   const vis=visibleSet(m,pcSources(m));
   const ek=m.id+":"+(m.z||0);if(!mapExplored[ek]){mapExplored[ek]=new Set();try{(JSON.parse(localStorage.getItem("nct-exp-"+ek)||"[]")).forEach(i=>mapExplored[ek].add(i))}catch(e){}}
   const ex=mapExplored[ek];let grew=false;vis.forEach(i=>{if(!ex.has(i)){ex.add(i);grew=true}});
   if(grew){clearTimeout(fogFor.t);fogFor.t=setTimeout(()=>{try{localStorage.setItem("nct-exp-"+ek,JSON.stringify([...ex]))}catch(e){}},1500)}
-  return {vis,ex};
+  return {soft,vis,ex};
 }
 function saveMapSoon(){clearTimeout(mapSaveT);mapSaveT=setTimeout(saveMapNow,700)}
 function saveMapNow(){clearTimeout(mapSaveT);mapSaveT=null;if(!mapLocal||!isDM())return;const m=mapLocal,d=maps[m.id]||{};
@@ -2142,7 +2164,7 @@ function mapToolsHtml(){
   const dm=isDM(),m=curMap(),list=Object.entries(maps).sort((a,b)=>(b[1].at||0)-(a[1].at||0));
   if(!dm)return m?`<div class="row" style="justify-content:space-between"><h2>${esc(m.name||"Karte")}${levelList(maps[m.id]).length>1?` <span class="tag">${esc(m.lvName||"")}</span>`:""}</h2><span class="muted" style="font-size:13px">Zieh deine Figur. Türen öffnest du durch Antippen, wenn du direkt daneben stehst. Auf einer Treppe wechselst du die Ebene.</span></div>`:"";
   return `<div class="row" style="justify-content:space-between;align-items:end"><div class="row" style="align-items:end">
-      ${list.length?`<div class="field" style="min-width:180px"><label class="label" for="map-sel">Karte</label><select id="map-sel">${list.map(([id,x])=>`<option value="${id}" ${id===(m&&m.id)?"selected":""}>${esc(x.name||"Karte")}${id===mapState.active?" · live":""}</option>`).join("")}</select></div>${m?`<div class="field" style="min-width:120px"><label class="label" for="map-scale">Massstab</label><select id="map-scale" ${maps[m.id]&&maps[m.id].kind?"disabled title=\"Fest für diese Kartenart\"":""}>${SCALES.map(([v,l])=>`<option value="${v}" ${v===mapScale(m.id)?"selected":""}>${l} · 1 Feld = ${v} m</option>`).join("")}${SCALES.some(s=>s[0]===mapScale(m.id))?"":`<option value="${mapScale(m.id)}" selected>Eigener · 1 Feld = ${mapScale(m.id)} m</option>`}</select></div>`:""}${m&&maps[m.id]&&(maps[m.id].kind==="city"||maps[m.id].kind==="district")?`<button class="btn small ${mapView.zoomPick?"primary":""}" data-act="mzoompick" aria-pressed="${!!mapView.zoomPick}">${mapView.zoomPick?(maps[m.id].kind==="city"?"Tippe auf ein Viertel …":"Tippe auf ein Gebäude oder eine Strasse …"):maps[m.id].kind==="city"?"Viertel öffnen":"Gebäude öffnen"}</button><span class="muted" style="font-size:12px;align-self:center">oder Doppelklick auf die Karte</span>`:""}${m&&maps[m.id]&&maps[m.id].parent&&maps[maps[m.id].parent]?`<button class="btn small" data-act="mparent">↑ ${esc(maps[maps[m.id].parent].name||"Zurück")}</button>`:""}`:""}
+      ${list.length?`<div class="field" style="min-width:180px"><label class="label" for="map-sel">Karte</label><select id="map-sel">${list.map(([id,x])=>`<option value="${id}" ${id===(m&&m.id)?"selected":""}>${esc(x.name||"Karte")}${id===mapState.active?" · live":""}</option>`).join("")}</select></div>${m?`<div class="field" style="min-width:120px"><label class="label" for="map-scale">Massstab</label><select id="map-scale" ${maps[m.id]&&maps[m.id].kind?"disabled title=\"Fest für diese Kartenart\"":""}>${SCALES.map(([v,l])=>`<option value="${v}" ${v===mapScale(m.id)?"selected":""}>${l} · 1 Feld = ${v} m</option>`).join("")}${SCALES.some(s=>s[0]===mapScale(m.id))?"":`<option value="${mapScale(m.id)}" selected>Eigener · 1 Feld = ${mapScale(m.id)} m</option>`}</select></div>`:""}${m&&maps[m.id]&&(maps[m.id].kind==="city"||maps[m.id].kind==="district")?`<button class="btn small ${mapView.zoomPick?"primary":""}" data-act="mzoompick" aria-pressed="${!!mapView.zoomPick}">${mapView.zoomPick?(maps[m.id].kind==="city"?"Tippe auf ein Viertel …":"Tippe auf ein Gebäude oder eine Strasse …"):maps[m.id].kind==="city"?"Viertel öffnen":"Gebäude öffnen"}</button><span class="muted" style="font-size:12px;align-self:center">oder Doppelklick auf die Karte</span>`:""}${m&&maps[m.id]&&maps[m.id].kind==="tactical"?`<button class="btn small" data-act="mintfill">Innenräume würfeln</button><button class="btn small" data-act="mintclear">Innen leeren</button>`:""}${m&&maps[m.id]&&maps[m.id].parent&&maps[maps[m.id].parent]?`<button class="btn small" data-act="mparent">↑ ${esc(maps[maps[m.id].parent].name||"Zurück")}</button>`:""}`:""}
       <button class="btn ${mapView.gen?"":"primary"}" data-act="mgen">${mapView.gen?"Generator schliessen":"Neue Karte"}</button></div>
     ${m?`<div class="row">${mapState.active===m.id?'<span class="chip you">Spieler sehen diese Karte</span>':`<button class="btn small primary" data-act="mlive">Den Spielern zeigen</button>`}<button class="btn small" data-act="medit" aria-pressed="${mapView.edit}">${mapView.edit?"Bearbeiten beenden":"Bearbeiten"}</button><button class="btn small" data-act="mprev" aria-pressed="${mapView.preview}">${mapView.preview?"DM-Ansicht":"Spieleransicht"}</button></div>`:""}</div>
   ${m?`<div class="row" style="gap:8px;align-items:center"><span class="label">Ebene</span><div class="seg">${levelList(maps[m.id]).map(l=>`<button data-act="mlvl" data-d="${l.z}" aria-pressed="${l.z===m.z}">${esc(l.name)}</button>`).join("")}</div>
@@ -2207,7 +2229,7 @@ function drawIsoNow(cv,m){
   if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
   const x=cv.getContext("2d");x.setTransform(dpr,0,0,dpr,0,0);x.fillStyle="#16161b";x.fillRect(0,0,W,H);
   const [hw,hh]=isoK(),dm=isDM()&&!mapView.preview,F=fogFor(m),low=mapView.isoLow,big=m.scale>=10;
-  const vis=i=>!F.vis||F.vis.has(i),known=i=>!F.vis||F.vis.has(i)||(F.ex&&F.ex.has(i));
+  const vis=i=>!F.vis||F.vis.has(i),known=i=>!F.vis||F.soft||F.vis.has(i)||(F.ex&&F.ex.has(i));
   const P=(cx,cy)=>c2s(cx,cy);
   const dia=(cx,cy,lift)=>{const a=P(cx,cy),b=P(cx+1,cy),c=P(cx+1,cy+1),d=P(cx,cy+1);x.beginPath();x.moveTo(a[0],a[1]-lift);x.lineTo(b[0],b[1]-lift);x.lineTo(c[0],c[1]-lift);x.lineTo(d[0],d[1]-lift);x.closePath()};
   const inView=(cx,cy)=>{const p=P(cx+.5,cy+.5);return p[0]>-hw*2&&p[0]<W+hw*2&&p[1]>-hh*14&&p[1]<H+hh*4};
@@ -2216,7 +2238,8 @@ function drawIsoNow(cv,m){
     const base=T.block&&ISO_H[t]?shade(T.c,.55):T.c,v=((cx*7+cy*13)%5)*.012;dia(cx,cy,0);x.fillStyle=shade(base.startsWith("#")?base:T.c,1-v);x.fill();
     if(hw>7){x.strokeStyle="rgba(0,0,0,.08)";x.lineWidth=1;x.stroke()}}
   // Wände, Gebäude, Deko und Figuren in Tiefenreihenfolge
-  const cur=combat.active?(combat.order||[])[combat.turn]:null,toks={};
+  const cur=combat.active?(combat.order||[])[combat.turn]:null,toks={},walkAt={};
+  if(!m.z)(m.walks||[]).forEach(([wx0,wy0,dx,dy,len,fl])=>{const lift=fl*3.5/m.scale*2.2;for(let j=0;j<len;j++){const xx=wx0+dx*j,yy=wy0+dy*j;if(xx>=0&&yy>=0&&xx<m.w&&yy<m.h)walkAt[yy*m.w+xx]=lift}});
   lvTokens(m).forEach(t=>{const i=t.y*m.w+t.x;if(!dm&&(t.hidden||(t.kind==="npc"&&F.vis&&!F.vis.has(i))))return;if(mact&&mact.kind==="tok"&&mact.id===t.id&&mact.moved)return;const pd=peersDrag[t.id];
     let fx=t.x+.5,fy=t.y+.5;if(pd&&pd.map===m.id&&isFinite(pd.x)&&isFinite(pd.y)){fx=pd.x;fy=pd.y}const k=Math.floor(fx)+Math.floor(fy);(toks[k]=toks[k]||[]).push({t,fx,fy})});
   const drawTok=(t,sx,sy)=>{const r=Math.max(6,hw*.55),isCur=cur&&((cur.ref&&cur.ref===t.ref)||(t.cid&&cur.id===t.cid)),lift=r*1.1;
@@ -2230,11 +2253,18 @@ function drawIsoNow(cv,m){
     if(hw>9){x.font='600 11px "IBM Plex Sans",Arial,sans-serif';x.textAlign="center";x.textBaseline="bottom";const nm=t.name||"",tw=x.measureText(nm).width;x.fillStyle="rgba(15,15,22,.8)";x.fillRect(sx-tw/2-4,sy-lift-r-16,tw+8,14);x.fillStyle="#fff";x.fillText(nm,sx,sy-lift-r-3)}};
   for(let d=0;d<=m.w+m.h;d++){
     for(let cx=Math.max(0,d-m.h+1);cx<=Math.min(m.w-1,d);cx++){const cy=d-cx;if(!inView(cx,cy))continue;const i=cy*m.w+cx,t=m.tiles[i],T=TILES[t];if(!dm&&!known(i))continue;
-      let hgt=ISO_H[t];if(hgt&&T){if(low&&!big&&(t==="W"||t==="D"||t==="G"))hgt=.9;if(big&&"BRU".includes(t))hgt*=m.scale>=50?1.6:1.2;const H2=hgt*hh;
+      let hgt=ISO_H[t];const fl=m.ht&&m.scale>=10?decF(m.ht[i]):0;if(fl>0)hgt=Math.max(1.2,fl*3.5/m.scale*2.2);
+      if(hgt&&T){if(low&&!big&&(t==="W"||t==="D"||t==="G"))hgt=.9;if(!m.ht&&big&&"BRU".includes(t))hgt*=m.scale>=50?1.6:1.2;const H2=hgt*hh;
         const a=P(cx,cy),b=P(cx+1,cy),c=P(cx+1,cy+1),e=P(cx,cy+1);x.globalAlpha=t==="G"?.55:1;
         x.fillStyle=shade(T.c,.62);x.beginPath();x.moveTo(e[0],e[1]);x.lineTo(c[0],c[1]);x.lineTo(c[0],c[1]-H2);x.lineTo(e[0],e[1]-H2);x.closePath();x.fill();
         x.fillStyle=shade(T.c,.8);x.beginPath();x.moveTo(c[0],c[1]);x.lineTo(b[0],b[1]);x.lineTo(b[0],b[1]-H2);x.lineTo(c[0],c[1]-H2);x.closePath();x.fill();
+        if(H2>hh*4&&hw>3){x.fillStyle="rgba(255,226,140,.16)";for(let k=hh*1.2;k<H2-hh*.5;k+=hh*1.1){x.beginPath();x.moveTo(e[0],e[1]-k);x.lineTo(c[0],c[1]-k);x.lineTo(c[0],c[1]-k-hh*.35);x.lineTo(e[0],e[1]-k-hh*.35);x.fill()}
+          x.fillStyle="rgba(120,220,255,.12)";for(let k=hh*1.6;k<H2-hh*.5;k+=hh*1.1){x.beginPath();x.moveTo(c[0],c[1]-k);x.lineTo(b[0],b[1]-k);x.lineTo(b[0],b[1]-k-hh*.3);x.lineTo(c[0],c[1]-k-hh*.3);x.fill()}}
         dia(cx,cy,H2);x.fillStyle=t==="W"?"#55555f":T.c;x.fill();x.globalAlpha=1}
+      const wk=walkAt[i];if(wk){const L2=wk*hh,a2=P(cx,cy),b2=P(cx+1,cy),c2=P(cx+1,cy+1),e2=P(cx,cy+1),th=hh*.35;
+        x.fillStyle="rgba(40,90,110,.9)";x.beginPath();x.moveTo(e2[0],e2[1]-L2);x.lineTo(c2[0],c2[1]-L2);x.lineTo(c2[0],c2[1]-L2+th);x.lineTo(e2[0],e2[1]-L2+th);x.fill();
+        x.beginPath();x.moveTo(c2[0],c2[1]-L2);x.lineTo(b2[0],b2[1]-L2);x.lineTo(b2[0],b2[1]-L2+th);x.lineTo(c2[0],c2[1]-L2+th);x.fill();
+        dia(cx,cy,L2);x.fillStyle="rgba(140,230,255,.85)";x.shadowColor="#3ef0ff";x.shadowBlur=8;x.fill();x.shadowBlur=0}
       const dc=m.deco&&m.deco[i];
       if(dc&&dc!=="."&&hw>4){const p=P(cx+.5,cy+.5);
         if(dc==="L"){x.fillStyle="rgba(0,0,0,.25)";x.beginPath();x.ellipse(p[0],p[1],hw*.45,hh*.45,0,0,7);x.fill();x.fillStyle="#3f8f3a";x.beginPath();x.arc(p[0],p[1]-hh*1.4,hw*.42,0,7);x.fill();x.fillStyle="#5fb15a";x.beginPath();x.arc(p[0]-hw*.12,p[1]-hh*1.6,hw*.22,0,7);x.fill()}
@@ -2245,7 +2275,7 @@ function drawIsoNow(cv,m){
           x.fillStyle=shade(col,.82);x.beginPath();x.moveTo(c[0],c[1]);x.lineTo(b[0],b[1]);x.lineTo(b[0],b[1]-H2);x.lineTo(c[0],c[1]-H2);x.fill();
           x.fillStyle=col;x.beginPath();x.moveTo(a[0],a[1]-H2);x.lineTo(b[0],b[1]-H2);x.lineTo(c[0],c[1]-H2);x.lineTo(e[0],e[1]-H2);x.fill()}
         else if("ZHJ".includes(dc)){x.fillStyle=dc==="J"?"#7fb3e6":dc==="H"?"#e3b62c":"#e6e6e6";x.font=`700 ${Math.round(clamp(hw*.6,9,14))}px "IBM Plex Sans",Arial,sans-serif`;x.textAlign="center";x.textBaseline="middle";x.fillText(dc==="J"?"Lift":dc==="H"?"Leiter":"Treppe",p[0],p[1]-hh)}}
-      if(!dm&&F.vis&&!vis(i)){dia(cx,cy,0);x.fillStyle="rgba(10,10,14,.55)";x.fill()}
+      if(!dm&&F.vis&&!vis(i)){dia(cx,cy,0);x.fillStyle=F.soft?"rgba(10,10,14,.5)":"rgba(10,10,14,.55)";x.fill()}
       if(dm&&(m.spawn||[]).includes(i)){dia(cx,cy,0);x.strokeStyle="#d63031";x.setLineDash([3,3]);x.lineWidth=1.5;x.stroke();x.setLineDash([])}}
     (toks[d]||[]).forEach(({t,fx,fy})=>{const p=P(fx,fy);drawTok(t,p[0],p[1])});
   }
@@ -2272,13 +2302,13 @@ function drawMapNow(){
     x.stroke();x.setLineDash([]);x.lineWidth=1}}
   const x0=Math.max(0,Math.floor(-ox/cs)),y0=Math.max(0,Math.floor(-oy/cs)),x1=Math.min(m.w-1,Math.ceil((W-ox)/cs)),y1=Math.min(m.h-1,Math.ceil((H-oy)/cs));
   if(F.vis){for(let cy=y0;cy<=y1;cy++)for(let cx=x0;cx<=x1;cx++){const i=cy*m.w+cx;if(F.vis.has(i))continue;const known=F.ex&&F.ex.has(i);
-    x.fillStyle=dm?"rgba(20,20,30,.3)":known?"rgba(25,25,32,.68)":"#1e1e22";x.fillRect(ox+cx*cs,oy+cy*cs,cs+.6,cs+.6)}}
+    x.fillStyle=dm?"rgba(20,20,30,.3)":F.soft?(known?"rgba(20,20,26,.3)":"rgba(20,20,26,.5)"):known?"rgba(25,25,32,.68)":"#1e1e22";x.fillRect(ox+cx*cs,oy+cy*cs,cs+.6,cs+.6)}}
   if(dm)(m.spawn||[]).forEach(i=>{const cx=i%m.w,cy=Math.floor(i/m.w),px=ox+cx*cs,py=oy+cy*cs;x.strokeStyle="#d63031";x.lineWidth=2;x.setLineDash([3,3]);x.strokeRect(px+3,py+3,cs-6,cs-6);x.setLineDash([])});
   if(mact&&mact.kind==="rect"){const a=mact.a,b=mact.b;x.strokeStyle="#e67e22";x.lineWidth=2;x.strokeRect(ox+Math.min(a[0],b[0])*cs,oy+Math.min(a[1],b[1])*cs,(Math.abs(a[0]-b[0])+1)*cs,(Math.abs(a[1]-b[1])+1)*cs)}
   if(mact&&mact.kind==="bridge"){const [ax,ay]=mact.a,[bx,by]=mact.b;x.strokeStyle="#e67e22";x.lineWidth=cs*2;x.globalAlpha=.3;x.beginPath();x.moveTo(ox+(ax+.5)*cs,oy+(ay+.5)*cs);Math.abs(bx-ax)>=Math.abs(by-ay)?x.lineTo(ox+(bx+.5)*cs,oy+(ay+.5)*cs):x.lineTo(ox+(ax+.5)*cs,oy+(by+.5)*cs);x.stroke();x.globalAlpha=1}
   if(mact&&mact.kind==="road"){const [ax,ay]=mact.a,[bx,by]=mact.b;x.strokeStyle="#f5e400";x.lineWidth=cs*3;x.globalAlpha=.25;x.beginPath();x.moveTo(ox+(ax+.5)*cs,oy+(ay+.5)*cs);Math.abs(bx-ax)>=Math.abs(by-ay)?x.lineTo(ox+(bx+.5)*cs,oy+(ay+.5)*cs):x.lineTo(ox+(ax+.5)*cs,oy+(by+.5)*cs);x.stroke();x.globalAlpha=1}
   if(cs>=13){x.font=`700 ${Math.round(clamp(cs*.34,10,14))}px "IBM Plex Sans",Arial,sans-serif`;x.textBaseline="middle";x.textAlign="left";
-    for(let cy=y0;cy<=y1;cy++)for(let cx=x0;cx<=x1;cx++){const d=m.deco[cy*m.w+cx];if(!CONN.includes(d))continue;const i=cy*m.w+cx;if(!dm&&F.vis&&!F.vis.has(i)&&!(F.ex&&F.ex.has(i)))continue;
+    for(let cy=y0;cy<=y1;cy++)for(let cx=x0;cx<=x1;cx++){const d=m.deco[cy*m.w+cx];if(!CONN.includes(d))continue;const i=cy*m.w+cx;if(!dm&&F.vis&&!F.soft&&!F.vis.has(i)&&!(F.ex&&F.ex.has(i)))continue;
       const txt=connLabel(m,cx,cy),tw=x.measureText(txt).width,bx0=ox+(cx+1)*cs+2,bx=bx0+tw+12>W-4?ox+cx*cs-tw-14:bx0,by=oy+(cy+.5)*cs,hh=Math.round(clamp(cs*.34,10,14))+8;
       x.fillStyle="rgba(20,20,26,.86)";x.fillRect(bx,by-hh/2,tw+12,hh);x.fillStyle=d==="J"?"#7fb3e6":d==="H"?"#e3b62c":"#e6e6e6";x.fillRect(bx,by-hh/2,3,hh);x.fillStyle="#fff";x.fillText(txt,bx+7,by+1)}}
   drawCityOverlay(x,m,ox,oy,cs,dm);
@@ -2314,6 +2344,36 @@ function paintAt(m,cx,cy){const tool=mapView.tool;if(cx<0||cy<0||cx>=m.w||cy>=m.
   else if(TILES[tool]){setTile(m,cx,cy,tool);if(!FLOORS.includes(tool))clearDecoAt(m,cx,cy)}
   drawMap();saveMapSoon()}
 const FLOORTHEMES={o:["office","meeting","exec"],k:["barracks","armory","generator","command","server"],b:["cellar"],n:["dance","bar","vip"],m:["clinic"],h:["storage"],f:["office","storage","clinic","shop","exec"],s:["shop"],g:[],r:[],w:[]};
+/* --- Innenräume für geöffnete Gebäude --- */
+const INT_THEMES={corp:["office","meeting","exec","server","lobby"],down:["office","shop","meeting","storage"],night:["bar","dance","vip","storage"],res:["barracks","shop","storage","clinic"],ind:["storage","generator","storage"],port:["storage","storage","generator"],outer:["cellar","storage","barracks"],green:["storage"]};
+function interiorInfo(m){const W=m.w,H=m.h,N=W*H,out=new Uint8Array(N),st=[],t=i=>m.tiles[i],solid=c=>c==="W"||c==="D"||c==="G"||c==="d";
+  for(let x=0;x<W;x++){st.push(x,(H-1)*W+x)}for(let y=0;y<H;y++){st.push(y*W,y*W+W-1)}
+  while(st.length){const i=st.pop();if(out[i]||solid(t(i)))continue;out[i]=1;const x=i%W,y=Math.floor(i/W);if(x>0)st.push(i-1);if(x<W-1)st.push(i+1);if(y>0)st.push(i-W);if(y<H-1)st.push(i+W)}
+  const touchOut=i=>{const x=i%W,y=Math.floor(i/W);return (x>0&&out[i-1])||(x<W-1&&out[i+1])||(y>0&&out[i-W])||(y<H-1&&out[i+W])};
+  return{out,touchOut,inside:i=>!out[i]&&!solid(t(i)),innerWall:i=>solid(t(i))&&!touchOut(i)}}
+function clearInterior(m){const I=interiorInfo(m);let fl=null;for(let i=0;i<m.w*m.h;i++)if(I.inside(i)){fl=m.tiles[i];break}if(!fl)return 0;let n=0;
+  for(let i=0;i<m.w*m.h;i++){const x=i%m.w,y=Math.floor(i/m.w);if(I.inside(i)||I.innerWall(i)){if(I.innerWall(i))setTile(m,x,y,fl);clearDecoAt(m,x,y);n++}}return n}
+function fillInterior(m,theme,R){R=R||Math.random;clearInterior(m);const I=interiorInfo(m),W=m.w,H=m.h,seen=new Uint8Array(W*H),themes=INT_THEMES[theme]||INT_THEMES.down;let rooms=0;
+  const g={w:W,h:H,get:(x,y)=>tileAt(m,x,y),gd:(x,y)=>decoAt(m,x,y),sd:(x,y,c)=>setDeco(m,x,y,c)};
+  for(let i0=0;i0<W*H;i0++){if(seen[i0]||!I.inside(i0))continue;const comp=new Set(),st=[i0];
+    while(st.length){const i=st.pop();if(seen[i]||!I.inside(i))continue;seen[i]=1;comp.add(i);const x=i%W,y=Math.floor(i/W);if(x>0)st.push(i-1);if(x<W-1)st.push(i+1);if(y>0)st.push(i-W);if(y<H-1)st.push(i+W)}
+    if(comp.size<12)continue;let x0=1e9,y0=1e9,x1=-1,y1=-1;comp.forEach(i=>{const x=i%W,y=Math.floor(i/W);x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y)});
+    const inC=(x,y)=>comp.has(y*W+x);
+    const split=(a,b,c,d,depth)=>{const w=c-a+1,h=d-b+1;if(depth>7||(w<10&&h<10)||(w*h<70&&R()<.5)){
+        const cells=[];for(let y=b;y<=d;y++)for(let x=a;x<=c;x++)if(inC(x,y)&&tileAt(m,x,y)!=="W")cells.push([x,y]);if(cells.length<6)return;
+        let fl=tileAt(m,cells[0][0],cells[0][1]);const th=pickOne(themes),tr={x0:a,y0:b,x1:c,y1:d};
+        if(th==="bar"||th==="dance"||th==="vip"){cells.forEach(([x,y])=>setTile(m,x,y,"n"));fl="n"}else if(th==="clinic"){cells.forEach(([x,y])=>setTile(m,x,y,"m"))}else if(th==="cellar"||th==="generator"){cells.forEach(([x,y])=>setTile(m,x,y,"k"))}
+        furnish(g,tr,th,R);for(let y=b;y<=d;y++)for(let x=a;x<=c;x++)if(!inC(x,y)&&decoAt(m,x,y)!==".")clearDecoAt(m,x,y);rooms++;return}
+      const vert=w>h?true:h>w?false:R()<.5;
+      if(vert){const k=ri(R,a+4,c-4);if(k<a+4||k>c-4)return split(a,b,c,d,99);const line=[];for(let y=b;y<=d;y++)if(inC(k,y)){setTile(m,k,y,"W");clearDecoAt(m,k,y);line.push(y)}
+        const ok=line.filter(y=>inC(k-1,y)&&inC(k+1,y)&&tileAt(m,k-1,y)!=="W"&&tileAt(m,k+1,y)!=="W");if(ok.length)setTile(m,k,pickOne(ok),"d");if(ok.length>8&&R()<.5)setTile(m,k,pickOne(ok),"d");
+        split(a,b,k-1,d,depth+1);split(k+1,b,c,d,depth+1)}
+      else{const k=ri(R,b+4,d-4);if(k<b+4||k>d-4)return split(a,b,c,d,99);const line=[];for(let x=a;x<=c;x++)if(inC(x,k)){setTile(m,x,k,"W");clearDecoAt(m,x,k);line.push(x)}
+        const ok=line.filter(x=>inC(x,k-1)&&inC(x,k+1)&&tileAt(m,x,k-1)!=="W"&&tileAt(m,x,k+1)!=="W");if(ok.length)setTile(m,pickOne(ok),k,"d");if(ok.length>8&&R()<.5)setTile(m,pickOne(ok),k,"d");
+        split(a,b,c,k-1,depth+1);split(a,k+1,c,d,depth+1)}};
+    split(x0,y0,x1,y1,0)}
+  return rooms}
+
 function applyRoom(m,a,b){const xa=Math.min(a[0],b[0]),xb=Math.max(a[0],b[0]),ya=Math.min(a[1],b[1]),yb=Math.max(a[1],b[1]);if(xb-xa<2||yb-ya<2)return;const fl=FLOORS.includes(mapView.floor)?mapView.floor:"f";
   for(let y=ya;y<=yb;y++)for(let x=xa;x<=xb;x++){const edge=x===xa||x===xb||y===ya||y===yb,cur=tileAt(m,x,y);clearDecoAt(m,x,y);if(edge){if(!(cur==="d"||cur==="D"))setTile(m,x,y,"W")}else setTile(m,x,y,fl)}
   const th=(FLOORTHEMES[fl]||[]);if(mapView.furnish&&th.length){const g={w:m.w,h:m.h,get:(x,y)=>tileAt(m,x,y),gd:(x,y)=>decoAt(m,x,y),sd:(x,y,c)=>setDeco(m,x,y,c)};
@@ -2347,11 +2407,23 @@ function stairsHtml(m,t){if(!t)return "";const d=decoAt(m,t.x,t.y);if(!CONN.incl
   const nm=v=>(levelList(maps[m.id]).find(l=>l.z===v)||{}).name,z=t.z||0;
   return `<div class="row" style="gap:6px"><span class="chip">${CONNNAME[d]}</span>${tg.sort((a,b)=>b-a).map(v=>`<button class="btn small primary" data-act="mstair" data-id="${t.id}" data-d="${v}">${v>z?"↑":"↓"} ${esc(nm(v))}</button>`).join("")}</div>`}
 function nearestWalk(m,x,y){let best=null,bd=1e9;for(let r=0;r<=4&&!best;r++)for(let yy=y-r;yy<=y+r;yy++)for(let xx=x-r;xx<=x+r;xx++){if(!walkable(m,xx,yy))continue;const d=(xx-x)**2+(yy-y)**2+(CONN.includes(decoAt(m,xx,yy))?-0.5:0);if(d<bd){bd=d;best=[xx,yy]}}return best}
-function fpOf(doc,z){const l=levelData(doc,z);const fp=[];for(let i=0;i<doc.w*doc.h;i++){const c=l.tiles[i];fp.push(!("rsgw.".includes(c)))}return fp}
+function fpOf(doc,z){if(doc.kind==="tactical"&&!z){const I=interiorInfo(doc);return Array.from({length:doc.w*doc.h},(_,i)=>!I.out[i])}const l=levelData(doc,z);const fp=[];for(let i=0;i<doc.w*doc.h;i++){const c=l.tiles[i];fp.push(!("rsgw.".includes(c)))}return fp}
+function genSewer(doc,surf,R){const w=doc.w,h=doc.h,N=w*h,a=new Array(N).fill("W"),dd=new Array(N).fill("."),st=surf.tiles,art=doc.art,I=(x,y)=>y*w+x,isR=i=>st[i]==="r",holes=[],spawn=[];
+  const nb=(i,f)=>{const x=i%w,y=Math.floor(i/w);let n=0;for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<w&&yy<h&&f(I(xx,yy)))n++}return n};
+  if(doc.kind==="city"){for(let i=0;i<N;i++){if(!isR(i))continue;a[i]=art&&art[i]==="1"?"w":"k"}
+    if(!art)for(let i=0;i<N;i++)if(isR(i)&&nb(i,isR)>=3)a[i]="w";
+    for(let i=0;i<N;i++)if(a[i]==="w"&&nb(i,j=>a[j]==="w")>=3)a[i]="b";
+    let outs=0;for(let i=0;i<N&&outs<12;i++)if((a[i]==="w"||a[i]==="b")&&nb(i,j=>st[j]==="w")>0&&R()<.5){dd[i]="O";outs++}
+    for(let i=0;i<N;i++)if(a[i]==="k"&&R()<.06)holes.push(i)}
+  else{for(let i=0;i<N;i++){if(!isR(i))continue;a[i]=nb(i,isR)===4?"w":"k"}
+    for(let i=0;i<N;i++)if(a[i]==="k"&&nb(i,j=>a[j]==="w")===0&&nb(i,j=>a[j]==="k")>=3&&R()<.04){a[i]="b"}
+    for(let i=0;i<N;i++)if(a[i]==="k"&&R()<.025)holes.push(i)}
+  for(let i=0;i<N;i++){if(a[i]==="W"||dd[i]!==".")continue;const r=R();if(r<.02)dd[i]="x";else if(a[i]!=="w"&&r<.035)spawn.push(i)}
+  return{a,dd,holes:holes.slice(0,80),spawn:spawn.slice(0,30)}}
 function addLevel(doc,type){
   const lv=levelList(doc).map(l=>l.z),R=mrng(Math.floor(Math.random()*1e9)),w=doc.w,h=doc.h;
   const z=type==="basement"?Math.min(0,...lv)-1:Math.max(0,...lv)+1,below=type==="basement"?z+1:z-1,bl=levelData(doc,below);
-  const g=G(w,h,type==="basement"?"W":".");let spawn=[],name="";
+  const g=G(w,h,type==="basement"?"W":".");let spawn=[],name="",sewerHoles=[];
   const fp=type==="basement"?null:fpOf(doc,below);
   if(type==="roof"){name="Dach";for(let i=0;i<w*h;i++)if(fp[i])g.a[i]="y";
     let nb=0;const tryB=(hz)=>{for(let t=0;t<200&&nb<5;t++){const x=ri(R,1,w-3),y=ri(R,1,h-3);if(g.get(x,y)!=="y")continue;
@@ -2366,11 +2438,13 @@ function addLevel(doc,type){
         for(let y=r.y0;y<=r.y1;y++)for(let x=r.x0;x<=r.x1;x++){const ok=fp[y*w+x]&&fp[(y-1)*w+x]&&fp[(y+1)*w+x]&&fp[y*w+x-1]&&fp[y*w+x+1];if(ok)g.set(x,y,THEMEFLOOR[l.theme])}});
       doorsOnSplits(g,splits,R);leaves.forEach(l=>furnish(g,interior(l),l.theme,R));
       leaves.slice().sort(()=>R()-.5).slice(0,Math.max(2,Math.ceil(leaves.length*.45))).forEach(l=>spawn.push(...pickCells(roomCells(g,interior(l)),ri(R,1,3),R)))}}
+  else if(type==="basement"&&(doc.kind==="city"||doc.kind==="district")){name=z===-1?"Kanalisation":"Tiefe Kanäle "+(-z);const s=genSewer(doc,bl,R);g.a=s.a;g.dd=s.dd;spawn=s.spawn;sewerHoles=s.holes}
   else if(type==="basement"){name=z===-1?"Keller":"Untergeschoss "+(-z);const c=genCellar(w,h,R);g.a=c.g.a;g.dd=c.g.dd;spawn=c.spawn}
   else{name="Ebene "+z;for(let i=0;i<w*h;i++)if(fp[i])g.a[i]="k";for(let i=0;i<w*h;i++)if(fp[i]){const x=i%w,y=Math.floor(i/w);if(!fp[i-1]||!fp[i+1]||!fp[i-w]||!fp[i+w])g.a[i]="W"}}
   // Treppen / Leitern verbinden die Ebenen
-  const lower=levelData(doc,below),ld=(lower.deco||".".repeat(w*h)).split(""),seen=new Array(w*h).fill(false);let stairsN=0;
+  const lower=levelData(doc,below),ld=(lower.deco||".".repeat(w*h)).split(""),seen=new Array(w*h).fill(false),seenHole={};let stairsN=0;
   const lowFree=k=>isFl(lower.tiles[k])&&ld[k]===".";
+  sewerHoles.forEach(k=>{if(g.dd[k]==="."&&ld[k]==="."){g.dd[k]="H";ld[k]="H";stairsN++;seenHole[k]=1}});
   for(let i=0;i<w*h;i++){if(seen[i]||!isFl(g.a[i]))continue;const q=[i],cells=[];seen[i]=true;
     while(q.length){const k=q.pop();if(isFl(g.a[k]))cells.push(k);const kx=k%w;for(const n of [k-1,k+1,k-w,k+w]){if(n<0||n>=w*h||seen[n]||!(isFl(g.a[n])||g.a[n]==="D"))continue;if((n===k-1&&kx===0)||(n===k+1&&kx===w-1))continue;seen[n]=true;q.push(n)}}
     if(cells.length<6)continue;
@@ -2716,6 +2790,9 @@ document.addEventListener("click",async e=>{
   else if(a==="mgtype"){mapView.gtype=b.dataset.k;render()}
   else if(a==="miso"){mapView.iso=!mapView.iso;try{localStorage.setItem("nct-iso",mapView.iso?"1":"0")}catch(e){}const m=curMap();if(m)fitMap(m);isoBtns();drawMap()}
   else if(a==="misolow"){mapView.isoLow=!mapView.isoLow;isoBtns();drawMap()}
+  else if(a==="mintfill"||a==="mintclear"){if(mapView.iso){toast("Bauen geht in der 2D-Ansicht.");return}const em=editMap();if(!em)return;const d=maps[em.id]||{};
+    if(a==="mintfill"){const n=fillInterior(em,d.dtype||"down");toast(n?`${n} Räume eingerichtet.`:"Kein Innenraum gefunden. Gibt es geschlossene Aussenwände?")}else{const n=clearInterior(em);toast(n?"Innenraum geleert. Zieh jetzt eigene Räume mit dem Raum-Werkzeug.":"Kein Innenraum gefunden.")}
+    mapCaches.clear&&mapCaches.clear();saveMapSoon();drawMap()}
   else if(a==="mzoompick"){mapView.zoomPick=!mapView.zoomPick;mapView.place=null;render();drawMap()}
   else if(a==="mparent"){const d=maps[curMapId()];if(d&&d.parent&&maps[d.parent]){mapView.id=d.parent;mapView.z=0;mapView.fitFor=null;mapLocal=null;mapView.zoomPick=false;mapView.sel=null;render()}}
   else if(a==="mgsize"){mapView.gsize=b.dataset.k;render()}
