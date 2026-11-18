@@ -346,6 +346,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--cyan);outline:none}
 #view.split .pbody{display:grid;gap:14px;min-width:0}
 .phead{display:flex;gap:8px;align-items:center;position:sticky;top:0;z-index:4;background:var(--bg2);border:1px solid var(--line);padding:6px 8px}
 .phead select{width:auto;flex:1;min-width:0;padding:5px 8px}
+.pbar{display:flex;gap:3px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:thin}
+.pbar button{flex:0 0 auto;font:600 11px var(--f-mono);text-transform:uppercase;letter-spacing:.06em;padding:5px 8px;background:transparent;border:1px solid var(--line);color:var(--fg);cursor:pointer}
+.pbar button[aria-pressed="true"]{background:var(--cyan);color:#0b0b10;border-color:var(--cyan)}
+.pbar button:disabled{opacity:.28;cursor:not-allowed;text-decoration:line-through}
+.pbar button:not(:disabled):not([aria-pressed="true"]):hover{border-color:var(--cyan);color:var(--cyan)}
 .has-dock #view.split{padding-bottom:0}
 .winsel button{padding:5px 9px;font-size:12px;letter-spacing:0;font-family:var(--f-mono)}
 nav button.pfocus{outline:1px solid var(--cyan);outline-offset:1px}
@@ -911,7 +916,7 @@ function render(){
     panes.forEach((k,i)=>{let p=v.children[i];
       if(!p){p=document.createElement("div");p.className="pane";p.innerHTML=`<div class="phead"></div><div class="pbody"></div>`;v.appendChild(p)}
       p.dataset.i=i;p.classList.toggle("focus",i===activePane);
-      p.querySelector(".phead").innerHTML=`<select class="psel" data-pane="${i}" aria-label="Inhalt von Fenster ${i+1}">${TABLIST.map(([key,l])=>`<option value="${key}" ${key===k?"selected":""}>${l}</option>`).join("")}</select><span class="mono muted" style="font-size:11px">Fenster ${i+1}</span><button class="btn small" data-act="pclose" data-i="${i}" aria-label="Fenster ${i+1} schliessen">✕</button>`;
+      p.querySelector(".phead").innerHTML=`<div class="pbar" role="toolbar" aria-label="Inhalt von Fenster ${i+1}">${TABLIST.map(([key,l])=>{const used=key!==k&&panes.includes(key);return `<button data-act="psel" data-pane="${i}" data-k="${key}" aria-pressed="${key===k}" ${used?`disabled title="Schon in Fenster ${panes.indexOf(key)+1} offen"`:""}>${l}</button>`}).join("")}</div><button class="btn small" data-act="pclose" data-i="${i}" aria-label="Fenster ${i+1} schliessen">✕</button>`;
       const body=p.querySelector(".pbody");if(body.dataset.key!==k){body.innerHTML="";body.dataset.key=k}
       renderInto(body,k,i===0?top:"")});
     while(v.children.length>panes.length)v.lastChild.remove();
@@ -1662,8 +1667,8 @@ const TILES={
   B:{n:"Dach grau",walk:0,block:1,c:"#6e7178"},R:{n:"Dach blau",walk:0,block:1,c:"#5d7590"},U:{n:"Dach Ziegel",walk:0,block:1,c:"#a9573a"}};
 const DECO={T:{n:"Schreibtisch",solid:1},h:{n:"Stuhl",solid:0},P:{n:"Terminal",solid:1},S:{n:"Server",solid:1},F:{n:"Regal",solid:1},X:{n:"Kiste",solid:1},O:{n:"Fass",solid:1},
   A:{n:"Auto",solid:1},a:{n:"Auto",solid:1},Q:{n:"Bar",solid:1},K:{n:"Sofa",solid:1},Y:{n:"Bett",solid:1},V:{n:"Automat",solid:1},E:{n:"Generator",solid:1},L:{n:"Pflanze",solid:1},
-  N:{n:"Neon",solid:0},C:{n:"Klimaanlage",solid:1},H:{n:"Leiter/Schacht",solid:0},J:{n:"Lift",solid:0},x:{n:"Müll",solid:0},p:{n:"Rohr",solid:0},Z:{n:"Treppe",solid:0}};
-const MAPTYPES=[["metropolis","Ganze Stadt","Organische Stadtkarte mit Bezirken, Küste und Fluss. 1 Feld = 50 m, rund 6 × 4,5 km. Viertel und Gebäude öffnest du direkt daraus."],["building","Gebäude","Gemischte Räume: Büros, Lager, Klinik, Server."],["office","Büroetage","Konzernetage mit Glas-Meetingräumen und Serverraum."],["bunker","Bunker","Betonflur, Waffenkammer, Schlafsaal, Generator."],["cellar","Keller","Backsteinkeller an einem Abwasserkanal mit Brücken."],["warehouse","Lagerhalle","Kistenreihen, Laderampe, Büro mit Glasfront."],["club","Nachtclub","Tanzfläche, Bar, VIP-Räume und Backstage."],["street","Strasse","Hauptstrasse mit Gassen, Hinterhöfen und Läden."],["city","Stadtviertel","Strassenraster mit Blocks, Höfen und Parks."],["empty","Leer","Leere Fläche zum Selbstbauen."]];
+  N:{n:"Neon",solid:0},C:{n:"Klimaanlage",solid:1},H:{n:"Leiter/Schacht",solid:0},J:{n:"Lift",solid:0},x:{n:"Müll",solid:0},p:{n:"Rohr",solid:0},Z:{n:"Treppe",solid:0},M:{n:"Marktstand",solid:1},u:{n:"Holo-Werbung",solid:0},v:{n:"Gully, Dampf",solid:0},q:{n:"Zaun",solid:1},I:{n:"AV-Landeplatz",solid:0}};
+const MAPTYPES=[["metropolis","Ganze Stadt","Organische Stadtkarte mit Bezirken, Küste und Fluss. 1 Feld = 50 m, rund 6 × 4,5 km. Viertel und Gebäude öffnest du direkt daraus."],["building","Gebäude","Gemischte Räume: Büros, Lager, Klinik, Server."],["office","Büroetage","Konzernetage mit Glas-Meetingräumen und Serverraum."],["bunker","Bunker","Betonflur, Waffenkammer, Schlafsaal, Generator."],["cellar","Keller","Backsteinkeller an einem Abwasserkanal mit Brücken."],["warehouse","Lagerhalle","Kistenreihen, Laderampe, Büro mit Glasfront."],["club","Nachtclub","Tanzfläche, Bar, VIP-Räume und Backstage."],["street","Strasse","Hauptstrasse mit Gassen, Hinterhöfen und Läden."],["city","Stadtviertel","Strassenraster mit Blocks, Höfen und Parks."],["market","Nachtmarkt","Marktstände, Holo-Werbung, Garküchen und eine Strasse mit Verkehr."],["subway","U-Bahn-Station","Bahnsteige, Gleise, Drehkreuze, Technikräume."],["carpark","Parkhaus","Autoreihen, Säulen, Kassenhäuschen, Lift und Treppen."],["hotel","Luxushotel (Heist)","Fertiges Preset: Lobby mit Bar und Sicherheitszentrale, Penthouse-Etage, Dach mit AV-Landeplatz, Tiefgarage."],["empty","Leer","Leere Fläche zum Selbstbauen."]];
 const MAPSIZES=[["s","Klein",32,24],["m","Mittel",44,32],["l","Gross",60,44]];
 const TOOLGROUPS=[["Bauen",[["move","Bewegen"],["room","Raum ziehen"],["road","Strasse ziehen"],["bridge","Brücke ziehen"],["W","Wand"],["G","Glaswand"],["D","Tür"],["B","Dach dunkel"],["R","Dach Konzern"],["U","Dach Wohnhaus"],["y","Dachfläche"]]],
   ["Böden",[["f","Flur"],["o","Büro"],["k","Beton"],["b","Keller"],["n","Club"],["m","Klinik"],["h","Lager"],["r","Strasse"],["s","Gehweg"],["g","Park"],["w","Wasser"]]],
@@ -1798,6 +1803,75 @@ function genClub(w,h,R){
   return{g,spawn,start};
 }
 function roofCh(R){const q=R();return q<.4?"B":q<.7?"R":"U"}
+/* --- neue Kartentypen: Nachtmarkt, U-Bahn, Parkhaus, Luxushotel (Heist-Preset) --- */
+function fillR(g,x0,y0,x1,y1,c){for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)g.set(x,y,c)}
+function boxR(g,x0,y0,x1,y1,fl,wall="W"){for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)g.set(x,y,(x===x0||x===x1||y===y0||y===y1)?wall:fl)}
+function streetBand(g,y0,y1,R){const w=g.w;fillR(g,0,y0,w-1,y1,"r");for(let x=1;x<w-2;x+=ri(R,5,9)){if(R()<.5){g.sd(x,y0+1,"A");g.sd(x+1,y0+1,"a")}}for(let x=3;x<w-3;x+=ri(R,6,11))if(R()<.5)g.sd(x,y1,"v")}
+function genMarket(w,h,R){const g=G(w,h,"k"),spawn=[],start=[];
+  streetBand(g,h-5,h-1,R);fillR(g,0,h-7,w-1,h-6,"s");
+  boxR(g,0,0,w-1,4,"n");for(let x=2;x<w-2;x+=6){g.set(x,4,"d");if(x+3<w-1)g.set(x+3,4,"G")}
+  boxR(g,0,4,5,h-8,"h");g.set(5,Math.floor(h/2),"d");boxR(g,w-6,4,w-1,h-8,"o");g.set(w-6,Math.floor(h/2)-2,"d");g.set(w-6,Math.floor(h/2)+2,"G");
+  for(let y=1;y<4;y++)for(let x=1;x<w-1;x++)if(R()<.06)g.sd(x,y,pickOne(["Q","h","K"]));
+  for(let y=6;y<h-9;y+=4)for(let x=7;x<w-8;x++){const gap=(x-7)%7===6;if(gap)continue;g.sd(x,y,"M");if(R()<.35)g.sd(x,y+1,pickOne(["X","O","x"]));if(R()<.15)g.sd(x,y-1,"h")}
+  for(let y=8;y<h-9;y+=4)for(let x=7;x<w-8;x+=3)if(g.gd(x,y)==="."&&R()<.7)g.sd(x,y,"u");
+  for(let x=1;x<w-1;x+=ri(R,3,6))g.sd(x,h-7,R()<.5?"N":"V");
+  for(let i=0;i<w*h;i++){const c=g.a[i];if(g.dd[i]===".")if((c==="k"||c==="n"||c==="h")&&R()<.05)spawn.push(i);if(c==="s"&&Math.floor(i/w)===h-6&&start.length<8&&R()<.4)start.push(i)}
+  return{g,spawn,start}}
+function genSubway(w,h,R){const g=G(w,h,"W"),spawn=[],start=[],cy=Math.floor(h/2);
+  fillR(g,1,1,w-2,6,"f");for(let x=3;x<w-3;x+=8){g.sd(x,1,"Z");start.push(1*w+x)}
+  for(let x=2;x<w-2;x++)if((x%5)!==2)g.sd(x,6,"q");
+  fillR(g,1,7,w-2,cy-3,"s");fillR(g,1,cy-2,w-2,cy+2,"b");fillR(g,1,cy+3,w-2,h-6,"s");
+  for(let x=1;x<w-1;x++){g.sd(x,cy-1,"p");g.sd(x,cy+1,"p")}
+  for(let x=4;x<w-4;x+=7){g.set(x,cy-4,"W");g.set(x,cy+4,"W")}
+  for(let x=2;x<w-2;x+=ri(R,5,8)){g.sd(x,8,pickOne(["V","K","u","x"]));g.sd(x,h-7,pickOne(["V","K","u","x"]))}
+  boxR(g,1,h-6,12,h-2,"k");g.set(6,h-6,"d");g.sd(3,h-4,"E");g.sd(9,h-4,"P");g.sd(4,h-3,"S");
+  boxR(g,w-13,h-6,w-2,h-2,"f");g.set(w-8,h-6,"d");g.sd(w-10,h-4,"T");g.sd(w-5,h-4,"P");g.sd(w-4,h-3,"F");
+  fillR(g,13,h-5,w-14,h-2,"b");for(let x=14;x<w-14;x+=3)if(R()<.4)g.sd(x,h-3,pickOne(["O","x","X"]));
+  for(let i=0;i<w*h;i++){const c=g.a[i];if(g.dd[i]==="."&&(c==="s"||c==="f"||c==="b")&&R()<.04)spawn.push(i)}
+  return{g,spawn,start}}
+function genCarpark(w,h,R){const g=G(w,h,"k"),spawn=[],start=[];boxR(g,0,0,w-1,h-1,"k");
+  g.set(0,Math.floor(h/2),"k");g.set(0,Math.floor(h/2)+1,"k");g.set(0,Math.floor(h/2)-1,"k");start.push(Math.floor(h/2)*w+1,(Math.floor(h/2)+1)*w+1);
+  for(let y=3;y<h-3;y+=6){for(let x=3;x<w-4;x+=2){if(R()<.72){g.sd(x,y,"A");g.sd(x+1,y,"a")}if(R()<.72){g.sd(x,y+1,"A");g.sd(x+1,y+1,"a")}}}
+  for(let y=6;y<h-1;y+=6)for(let x=6;x<w-1;x+=8)g.set(x,y-1,"W");
+  g.sd(w-3,2,"J");g.sd(2,2,"Z");g.sd(2,h-3,"Z");g.sd(w-3,h-3,"H");boxR(g,1,Math.floor(h/2)-4,4,Math.floor(h/2)-2,"o");g.set(4,Math.floor(h/2)-3,"G");g.sd(2,Math.floor(h/2)-3,"P");
+  for(let i=0;i<w*h;i++){if(g.dd[i]==="."&&g.a[i]==="k"&&R()<.03)spawn.push(i);if(g.dd[i]==="."&&g.a[i]==="k"&&R()<.008)g.dd[i]=pickOne(["x","O","v"])}
+  return{g,spawn,start}}
+function genHotel(w,h,R){w=44;h=32;const lift=[[20,13],[23,13]],stairs=[[40,4],[3,4]];
+  const lvl=()=>G(w,h,"."),put2=(g,list,c)=>list.forEach(([x,y])=>g.sd(x,y,c));
+  // Erdgeschoss: Strasse, Glasfront, Lobby, Rezeption, Bar, Sicherheit, Küche
+  const g=G(w,h,"k");streetBand(g,h-5,h-1,R);fillR(g,0,h-7,w-1,h-6,"s");
+  boxR(g,1,1,w-2,h-8,"o");for(let x=2;x<w-2;x++)g.set(x,h-8,"G");g.set(20,h-8,"d");g.set(21,h-8,"d");g.set(22,h-8,"d");
+  fillR(g,12,9,31,h-9,"f");for(let x=12;x<=31;x+=4){g.sd(x,h-10,"L");}g.sd(14,18,"K");g.sd(15,18,"K");g.sd(28,18,"K");g.sd(29,18,"K");g.sd(17,16,"u");g.sd(26,16,"u");
+  for(let x=16;x<=27;x++)g.sd(x,11,"Q");g.sd(18,10,"P");g.sd(25,10,"P");
+  for(let y=1;y<=h-8;y++){g.set(11,y,"W");g.set(32,y,"W")}g.set(11,14,"d");g.set(32,14,"d");g.set(11,20,"G");g.set(32,20,"G");
+  fillR(g,2,2,10,h-9,"n");for(let y=4;y<=h-10;y+=3)g.sd(9,y,"Q");g.sd(3,6,"K");g.sd(3,10,"K");g.sd(5,14,"K");g.sd(3,18,"K");g.sd(2,2,"N");g.sd(10,2,"N");
+  boxR(g,32,1,w-2,9,"o");g.set(36,9,"D");g.sd(34,3,"P");g.sd(35,3,"P");g.sd(37,3,"S");g.sd(38,3,"S");g.sd(34,6,"T");g.sd(37,6,"h");
+  boxR(g,32,9,w-2,h-8,"m");g.set(36,9,"D");g.set(32,16,"d");for(let x=34;x<w-3;x+=2)g.sd(x,11,"F");g.sd(35,15,"E");g.sd(38,18,"O");
+  fillR(g,12,1,31,8,"f");for(let x=12;x<=31;x++)g.set(x,8,"W");g.set(21,8,"d");g.set(22,8,"d");boxR(g,18,1,25,7,"f");g.set(21,7,"d");
+  put2(g,lift,"J");put2(g,stairs,"Z");g.set(3,4,"n");g.set(40,4,"o");
+  const sp0=[];for(let i=0;i<w*h;i++)if(g.dd[i]==="."&&"ofnm".includes(g.a[i])&&R()<.05)sp0.push(i);
+  const st0=[];for(let x=18;x<26;x++)st0.push((h-6)*w+x);
+  // Penthouse-Etage
+  const p=lvl();boxR(p,1,1,w-2,h-8,"f");fillR(p,2,12,w-3,15,"f");for(let x=1;x<w-1;x++){p.set(x,11,"W");p.set(x,16,"W")}
+  [[2,10],[11,19],[20,29]].forEach(([a,b],i)=>{for(let y=1;y<=11;y++)p.set(b+1,y,"W");fillR(p,a,2,b,10,i===1?"o":"n");p.set(Math.floor((a+b)/2),11,"d");p.sd(a+1,3,"Y");p.sd(a+1,4,"Y");p.sd(b-1,8,"K");p.sd(b-2,8,"K");p.sd(a+2,8,"T");p.sd(b-1,3,"L")});
+  fillR(p,31,2,w-3,10,"o");p.set(35,11,"d");p.sd(38,4,"S");p.sd(39,4,"S");p.sd(33,4,"P");p.sd(33,7,"T");p.sd(36,7,"h");
+  fillR(p,2,17,w-3,h-9,"n");p.set(21,16,"D");p.set(22,16,"D");for(let x=8;x<15;x++)for(let y=19;y<23;y++)p.set(x,y,"w");p.sd(18,19,"Y");p.sd(18,20,"Y");p.sd(26,19,"K");p.sd(27,19,"K");p.sd(26,22,"Q");p.sd(30,21,"S");p.sd(31,21,"P");p.sd(35,19,"L");p.sd(4,18,"L");p.sd(38,22,"u");
+  for(let x=2;x<w-2;x+=3)p.set(x,h-8,"G");put2(p,lift,"J");put2(p,stairs,"Z");
+  const sp1=[];for(let i=0;i<w*h;i++)if(p.dd[i]==="."&&"ofn".includes(p.a[i])&&R()<.07)sp1.push(i);
+  // Dach mit AV-Landeplatz
+  const r=lvl();fillR(r,1,1,w-2,h-8,"y");for(let x=14;x<=29;x++)for(let y=8;y<=19;y++)r.set(x,y,"k");r.sd(21,13,"I");
+  for(let x=3;x<12;x+=3)r.sd(x,3,"C");for(let x=33;x<w-3;x+=3)r.sd(x,h-11,"C");r.sd(4,h-11,"E");put2(r,[[23,13]],"J");r.sd(40,4,"Z");
+  const sp2=[];for(let i=0;i<w*h;i++)if(r.dd[i]==="."&&r.a[i]==="y"&&R()<.03)sp2.push(i);
+  // Tiefgarage
+  const b=G(w,h,"W");fillR(b,1,1,w-2,h-8,"k");for(let y=3;y<h-9;y+=5)for(let x=5;x<w-4;x+=2)if(R()<.7){b.sd(x,y,"A");b.sd(x+1,y,"a")}
+  for(let y=5;y<h-8;y+=5)for(let x=8;x<w-2;x+=9)b.set(x,y,"W");boxR(b,1,h-14,8,h-8,"o");b.set(8,h-11,"G");b.sd(3,h-11,"P");b.sd(5,h-10,"S");
+  fillR(b,w-6,h-8,w-2,h-6,"k");put2(b,lift,"J");put2(b,stairs,"Z");
+  const sp3=[];for(let i=0;i<w*h;i++)if(b.dd[i]==="."&&b.a[i]==="k"&&R()<.03)sp3.push(i);
+  return{g,spawn:sp0,start:st0,size:[w,h],levels:[
+    {z:1,name:"Penthouse-Etage",tiles:p.a.join(""),deco:p.dd.join(""),spawn:pickCells(sp1,16,R)},
+    {z:2,name:"Dach · AV-Landeplatz",tiles:r.a.join(""),deco:r.dd.join(""),spawn:pickCells(sp2,8,R)},
+    {z:-1,name:"Tiefgarage",tiles:b.a.join(""),deco:b.dd.join(""),spawn:pickCells(sp3,14,R)}]}}
+
 function genStreet(w,h,R){
   const g=G(w,h,"B"),mid=Math.floor(h/2),spawn=[];
   for(let x=0;x<w;x++){for(let y=mid-2;y<=mid+1;y++)g.set(x,y,"r");g.set(x,mid-3,"s");g.set(x,mid+2,"s")}
@@ -1976,6 +2050,9 @@ function genTactical(dm,wx,wy,ww,wh,seed){
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){const d=dm.deco[D(x,y)],cx=x%K,cy=y%K;if(inB(x,y))continue;
     if(d==="L"&&cx===2&&cy===2)put(g,x,y,"L");else if(d==="X"&&cx%2===0&&cy<4)put(g,x,y,"X");else if(d==="O"&&cx===1&&cy===1)put(g,x,y,"O");else if(d==="x"&&cx===2&&cy===3)put(g,x,y,"x");else if(d==="N"&&cx===0&&cy===2)put(g,x,y,"N")}
   for(let y=1;y<h-1;y++)for(let x=1;x<w-2;x++)if(g.a[I(x,y)]==="r"&&g.a[I(x,y-1)]==="r"&&g.a[I(x,y+1)]==="r"&&R()<.012)car(g,x,y,R,R()<.5);
+  const dt=dm.dtype||"res";for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const i=I(x,y),c=g.a[i];if(g.dd[i]!==".")continue;const nearW=[[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>g.a[I(x+dx,y+dy)]==="W"||g.a[I(x+dx,y+dy)]==="G");
+    if(c==="s"&&nearW&&(dt==="night"||dt==="down")&&R()<.05)g.dd[i]=R()<.6?"M":"u";else if(c==="s"&&nearW&&R()<.02)g.dd[i]=pickOne(["V","u","x"]);else if(c==="r"&&R()<.006)g.dd[i]="v";
+    else if((dt==="ind"||dt==="outer"||dt==="port")&&c!=="r"&&c!=="s"&&!inB(x,y)&&(x%9===0)&&R()<.5)g.dd[i]="q"}
   const spawn=[],start=[];for(let i=0;i<w*h;i++){const c=g.a[i];if(g.dd[i]!=="."||!TILES[c]||!TILES[c].walk)continue;if("ofh".includes(c)&&R()<.05)spawn.push(i);if((c==="s"||c==="r")&&(i%w<3||Math.floor(i/w)<3)&&start.length<8)start.push(i)}
   return{w,h,type:"tactical",kind:"tactical",seed,scale:2,fog:true,tiles:g.a.join(""),deco:g.dd.join(""),spawn:pickCells(spawn,20,R),start,links:{}};
 }
@@ -2015,9 +2092,9 @@ function genMap(type,sizeKey,seed,wh){
   const [,,w,h]=wh?[0,0,wh[0],wh[1]]:(MAPSIZES.find(s=>s[0]===sizeKey)||MAPSIZES[1]),R=mrng(seed);
   let res;
   if(type==="empty"){const g=G(w,h,"k");res={g,spawn:[],start:[0,1,w,w+1]}}
-  else res=({building:()=>genBuilding(w,h,R,"mixed"),office:()=>genBuilding(w,h,R,"office"),bunker:()=>genBunker(w,h,R),cellar:()=>genCellar(w,h,R),warehouse:()=>genWarehouse(w,h,R),club:()=>genClub(w,h,R),street:()=>genStreet(w,h,R),city:()=>genCity(w,h,R)}[type]||(()=>genBuilding(w,h,R,"mixed")))();
+  else res=({building:()=>genBuilding(w,h,R,"mixed"),office:()=>genBuilding(w,h,R,"office"),bunker:()=>genBunker(w,h,R),cellar:()=>genCellar(w,h,R),warehouse:()=>genWarehouse(w,h,R),club:()=>genClub(w,h,R),street:()=>genStreet(w,h,R),city:()=>genCity(w,h,R),market:()=>genMarket(w,h,R),subway:()=>genSubway(w,h,R),carpark:()=>genCarpark(w,h,R),hotel:()=>genHotel(w,h,R)}[type]||(()=>genBuilding(w,h,R,"mixed")))();
   const g=res.g,sp=[...new Set(res.spawn)].filter(i=>isFl(g.a[i])&&g.dd[i]==="."&&!res.start.includes(i));
-  return{w,h,type,seed,tiles:g.a.join(""),deco:g.dd.join(""),spawn:pickCells(sp,Math.min(sp.length,24),R),start:res.start};
+  return{w:g.w,h:g.h,type,seed,tiles:g.a.join(""),deco:g.dd.join(""),spawn:pickCells(sp,Math.min(sp.length,24),R),start:res.start,...(res.levels?{levels:res.levels}:{})};
 }
 /* Sichtlinie */
 const tileAt=(m,x,y)=>x<0||y<0||x>=m.w||y>=m.h?".":m.tiles[y*m.w+x];
@@ -2133,6 +2210,13 @@ function drawDeco(x,m,d,px,py,S,cx,cy){
   else if(d==="C"){sh(.08,.08,.84,.84);r(.08,.08,.84,.84,"#b3b6bc");o(.08,.08,.84,.84,"#555");x.strokeStyle="#555";x.beginPath();x.arc(px+S/2,py+S/2,S*.28,0,7);x.stroke();for(let i=0;i<4;i++){const an=i*Math.PI/2+.4;x.beginPath();x.moveTo(px+S/2,py+S/2);x.lineTo(px+S/2+Math.cos(an)*S*.26,py+S/2+Math.sin(an)*S*.26);x.stroke()}}
   else if(d==="H"){r(.14,.14,.72,.72,"#3d3f45");o(.14,.14,.72,.72,"#1d1d21");x.strokeStyle="#c9a227";x.lineWidth=2;x.beginPath();x.moveTo(px+S*.32,py+S*.18);x.lineTo(px+S*.32,py+S*.82);x.moveTo(px+S*.68,py+S*.18);x.lineTo(px+S*.68,py+S*.82);for(let i=1;i<5;i++){x.moveTo(px+S*.32,py+S*(.18+i*.13));x.lineTo(px+S*.68,py+S*(.18+i*.13))}x.stroke();x.lineWidth=1}
   else if(d==="J"){r(.06,.06,.88,.88,"#7f8a96");o(.06,.06,.88,.88,"#2b2f36");r(.14,.14,.34,.72,"#b8c2cc");r(.52,.14,.34,.72,"#b8c2cc");x.fillStyle="#2b2f36";x.beginPath();x.moveTo(px+S*.5,py+S*.2);x.lineTo(px+S*.62,py+S*.34);x.lineTo(px+S*.38,py+S*.34);x.fill();x.beginPath();x.moveTo(px+S*.5,py+S*.8);x.lineTo(px+S*.62,py+S*.66);x.lineTo(px+S*.38,py+S*.66);x.fill()}
+  else if(d==="M"){sh(.04,.1,.92,.8);r(.04,.34,.92,.56,"#6b4a2e");o(.04,.34,.92,.56,"#3a2614");const cols=["#e84393","#00a8e8","#f1c40f","#2ecc71"],c1=cols[Math.floor(hsh(cx,cy,3)*4)];for(let i=0;i<4;i++)r(.04+i*.23,.08,.23,.26,i%2?c1:"#f4f1e8");o(.04,.08,.92,.26,"rgba(0,0,0,.4)");for(let i=0;i<3;i++)if(hsh(cx,cy,i+9)>.3){x.fillStyle=["#e67e22","#c0392b","#f5d76e"][i];x.beginPath();x.arc(px+S*(.24+i*.26),py+S*.6,S*.08,0,7);x.fill()}}
+  else if(d==="u"){const cols=["#ff2e88","#3fe6ff","#b48cff","#7dff6a"],col=cols[Math.floor(hsh(cx,cy,4)*4)];const g3=x.createRadialGradient(px+S/2,py+S/2,0,px+S/2,py+S/2,S*.9);g3.addColorStop(0,col+"55");g3.addColorStop(1,col+"00");x.fillStyle=g3;x.fillRect(px-S*.4,py-S*.4,S*1.8,S*1.8);x.strokeStyle=col;x.lineWidth=1.5;x.strokeRect(px+S*.22,py+S*.18,S*.56,S*.4);x.fillStyle=col+"aa";x.fillRect(px+S*.28,py+S*.26,S*.2,S*.05);x.fillRect(px+S*.28,py+S*.36,S*.36,S*.05);x.fillRect(px+S*.28,py+S*.46,S*.28,S*.05);x.fillStyle="#555";x.fillRect(px+S*.48,py+S*.58,S*.04,S*.3)}
+  else if(d==="v"){r(.22,.22,.56,.56,"#3b3d42");x.strokeStyle="#1d1e22";x.lineWidth=1;for(let i=1;i<4;i++){x.beginPath();x.moveTo(px+S*(.22+i*.14),py+S*.24);x.lineTo(px+S*(.22+i*.14),py+S*.76);x.stroke()}const g4=x.createRadialGradient(px+S/2,py+S*.35,0,px+S/2,py+S*.35,S*.7);g4.addColorStop(0,"rgba(235,240,245,.55)");g4.addColorStop(1,"rgba(235,240,245,0)");x.fillStyle=g4;x.beginPath();x.arc(px+S/2,py+S*.35,S*.7,0,7);x.fill()}
+  else if(d==="q"){const hz=decoAt(m,cx-1,cy)==="q"||decoAt(m,cx+1,cy)==="q"||!(decoAt(m,cx,cy-1)==="q"||decoAt(m,cx,cy+1)==="q");x.strokeStyle="#9aa2ab";x.lineWidth=1;const yy=py+S*.5,xx=px+S*.5;
+    if(hz){x.fillStyle="#6c737b";x.fillRect(px,yy-2,S,4);for(let i=0;i<5;i++){x.beginPath();x.moveTo(px+i*S/5,yy-S*.18);x.lineTo(px+(i+1)*S/5,yy+S*.18);x.moveTo(px+(i+1)*S/5,yy-S*.18);x.lineTo(px+i*S/5,yy+S*.18);x.stroke()}}
+    else{x.fillStyle="#6c737b";x.fillRect(xx-2,py,4,S);for(let i=0;i<5;i++){x.beginPath();x.moveTo(xx-S*.18,py+i*S/5);x.lineTo(xx+S*.18,py+(i+1)*S/5);x.moveTo(xx+S*.18,py+i*S/5);x.lineTo(xx-S*.18,py+(i+1)*S/5);x.stroke()}}}
+  else if(d==="I"){x.strokeStyle="#f5e400";x.lineWidth=Math.max(2,S*.08);x.beginPath();x.arc(px+S/2,py+S/2,S*1.6,0,7);x.stroke();x.fillStyle="#f5e400";x.font=`900 ${Math.round(S*1.2)}px "IBM Plex Sans",Arial,sans-serif`;x.textAlign="center";x.textBaseline="middle";x.fillText("AV",px+S/2,py+S/2+1)}
   else if(d==="Z"){r(.06,.06,.88,.88,"#b9b4a8");x.strokeStyle="rgba(0,0,0,.4)";for(let i=1;i<5;i++){x.beginPath();x.moveTo(px+S*.1,py+S*i*.2);x.lineTo(px+S*.9,py+S*i*.2);x.stroke()}o(.06,.06,.88,.88)}
 }
 function buildMapCache(m){
@@ -2151,6 +2235,8 @@ function buildMapCache(m){
     for(const [dx,dy,ax,ay,bx,by] of [[0,-1,0,0,1,0],[0,1,0,1,1,1],[-1,0,0,0,0,1],[1,0,1,0,1,1]])if(tileAt(m,cx+dx,cy+dy)==="."){x.beginPath();x.moveTo(px+ax*MS,py+ay*MS);x.lineTo(px+bx*MS,py+by*MS);x.stroke()}x.lineWidth=1}
   for(let cy=0;cy<m.h;cy++)for(let cx=0;cx<m.w;cx++){const d=m.deco[cy*m.w+cx];if(d!=="."&&d!=="N")drawDeco(x,m,d,cx*MS,cy*MS,MS,cx,cy)}
   for(let cy=0;cy<m.h;cy++)for(let cx=0;cx<m.w;cx++)if(m.deco[cy*m.w+cx]==="N")drawDeco(x,m,"N",cx*MS,cy*MS,MS,cx,cy);
+  for(let cy=0;cy<m.h;cy++)for(let cx=0;cx<m.w;cx++){const tt=m.tiles[cy*m.w+cx];if((tt!=="r"&&tt!=="s"&&tt!=="k")||(m.z||0)!==0||hsh(cx,cy,21)>.035||m.scale>=10)continue;const px=cx*MS+MS/2,py=cy*MS+MS/2,rw=MS*(.5+hsh(cx,cy,22)*.7);
+    x.save();x.globalAlpha=.55;x.fillStyle="rgba(70,90,120,.55)";x.beginPath();x.ellipse(px,py,rw,rw*.45,hsh(cx,cy,23)*3,0,7);x.fill();const nc=["#ff2e88","#3fe6ff","#b48cff"][Math.floor(hsh(cx,cy,24)*3)];x.globalAlpha=.35;x.fillStyle=nc;x.beginPath();x.ellipse(px+rw*.15,py,rw*.45,rw*.12,hsh(cx,cy,23)*3,0,7);x.fill();x.restore()}
   mapCaches.set(m.id+":"+(m.z||0),{key,c});return c;
 }
 /* Ansicht */
@@ -2222,7 +2308,7 @@ function isoBtns(){const b=$("#isoBtn"),l=$("#isoLowBtn");if(b){b.setAttribute("
 function fitIso(m){const cv=$("#mapCanvas");if(!cv||!m)return;const W=cv.clientWidth||600,H=cv.clientHeight||400,n=m.w+m.h;
   mapView.zoom=clamp(Math.min(W/(n*.72*28),(H-40)/(n*.36*28)),.15,3);const [hw,hh]=isoK();mapView.ox=W/2-(m.w-m.h)/2*hw;mapView.oy=(H-n*hh)/2+20}
 const ISO_H={W:2.6,D:2.4,G:2.4,c:1,B:3.2,R:5.5,U:2.6};
-const DECO_COL={X:"#9a6b3c",O:"#6f7d55",A:"#c0392b",a:"#c0392b",S:"#2d3540",T:"#8a6a48",P:"#3b4a5c",F:"#7a6a58",Q:"#5a3a2a",K:"#6c5a8a",Y:"#8fa3b8",V:"#2f8f8a",E:"#5d6a3c",C:"#b9bec4"};
+const DECO_COL={M:"#c0392b",q:"#8a929a",X:"#9a6b3c",O:"#6f7d55",A:"#c0392b",a:"#c0392b",S:"#2d3540",T:"#8a6a48",P:"#3b4a5c",F:"#7a6a58",Q:"#5a3a2a",K:"#6c5a8a",Y:"#8fa3b8",V:"#2f8f8a",E:"#5d6a3c",C:"#b9bec4"};
 function shade(hex,f){const n=parseInt(hex.slice(1),16),r=n>>16&255,g=n>>8&255,b=n&255,c=v=>Math.max(0,Math.min(255,Math.round(v*f)));return `rgb(${c(r)},${c(g)},${c(b)})`}
 function drawIsoNow(cv,m){
   const dpr=Math.min(window.devicePixelRatio||1,2),W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;
@@ -2349,7 +2435,7 @@ const INT_THEMES={corp:["office","meeting","exec","server","lobby"],down:["offic
 function interiorInfo(m){const W=m.w,H=m.h,N=W*H,out=new Uint8Array(N),st=[],t=i=>m.tiles[i],solid=c=>c==="W"||c==="D"||c==="G"||c==="d";
   for(let x=0;x<W;x++){st.push(x,(H-1)*W+x)}for(let y=0;y<H;y++){st.push(y*W,y*W+W-1)}
   while(st.length){const i=st.pop();if(out[i]||solid(t(i)))continue;out[i]=1;const x=i%W,y=Math.floor(i/W);if(x>0)st.push(i-1);if(x<W-1)st.push(i+1);if(y>0)st.push(i-W);if(y<H-1)st.push(i+W)}
-  const touchOut=i=>{const x=i%W,y=Math.floor(i/W);return (x>0&&out[i-1])||(x<W-1&&out[i+1])||(y>0&&out[i-W])||(y<H-1&&out[i+W])};
+  const touchOut=i=>{const x=i%W,y=Math.floor(i/W);return x===0||y===0||x===W-1||y===H-1||(x>0&&out[i-1])||(x<W-1&&out[i+1])||(y>0&&out[i-W])||(y<H-1&&out[i+W])};
   return{out,touchOut,inside:i=>!out[i]&&!solid(t(i)),innerWall:i=>solid(t(i))&&!touchOut(i)}}
 function clearInterior(m){const I=interiorInfo(m);let fl=null;for(let i=0;i<m.w*m.h;i++)if(I.inside(i)){fl=m.tiles[i];break}if(!fl)return 0;let n=0;
   for(let i=0;i<m.w*m.h;i++){const x=i%m.w,y=Math.floor(i/m.w);if(I.inside(i)||I.innerWall(i)){if(I.innerWall(i))setTile(m,x,y,fl);clearDecoAt(m,x,y);n++}}return n}
@@ -2666,6 +2752,7 @@ document.addEventListener("click",async e=>{
   else if(a==="wins"){const n=+b.dataset.d;if(n<=1){if(panes.length>1)tab=panes[activePane];panes=[]}else{let cur=panes.length>1?panes.slice():[tab];const pref=[tab,"map","char","dice","dm","party","cat","camp","rules"];
       while(cur.length<n){const nx=pref.find(k=>!cur.includes(k));cur.push(nx)}panes=cur.slice(0,n);if(activePane>=n)activePane=0}
     savePanes();$("#view").innerHTML="";$("#view").classList.remove("split");render();drawMap()}
+  else if(a==="psel"){const i=+b.dataset.pane,k=b.dataset.k;if(panes.includes(k)&&panes[i]!==k)return;panes[i]=k;activePane=i;savePanes();render();drawMap()}
   else if(a==="pclose"){const i=+b.dataset.i;panes.splice(i,1);if(panes.length<2){tab=panes[0]||tab;panes=[]}activePane=0;savePanes();$("#view").innerHTML="";$("#view").classList.remove("split");render();drawMap()}
   else if(a==="whto"){wh.to=id;render()}
   else if(a==="whkind"){wh.kind=b.dataset.k;render()}
