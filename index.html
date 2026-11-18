@@ -42,7 +42,7 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:rgb
   padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .logo{font-family:var(--f-display);font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:18px;color:var(--yel);display:flex;gap:8px;align-items:baseline}
 .logo small{font-family:var(--f-mono);color:var(--cyan);font-size:12px;letter-spacing:.1em}
-nav{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+nav{display:flex;gap:4px;flex-wrap:wrap;width:100%;border-top:1px solid var(--line);padding-top:8px}
 nav button{background:none;border:1px solid transparent;padding:6px 12px;font-family:var(--f-display);text-transform:uppercase;letter-spacing:.08em;font-size:13px;color:var(--muted);cursor:pointer}
 nav button[aria-current="true"]{color:var(--bg);background:var(--yel);clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px))}
 nav button:hover:not([aria-current="true"]){color:var(--fg);border-color:var(--line)}
@@ -345,7 +345,7 @@ body.multi #nav{display:none}
 #view.split .pane{display:flex;flex-direction:column;gap:14px;min-width:0;height:calc(100dvh - var(--hdr,120px) - 28px - var(--qb,0px));overflow:auto;overscroll-behavior:contain;padding:0 4px 24px 0;border-top:2px solid transparent}
 #view.split .pane.focus{border-top-color:var(--yel)}
 #view.split .pbody{display:grid;gap:14px;min-width:0;flex:1 0 auto;align-content:start}
-#view.split .pane>.phead{order:2;top:auto;bottom:0;box-shadow:0 -8px 18px rgba(0,0,0,.35)}
+
 .phead{display:flex;gap:8px;align-items:center;position:sticky;top:0;z-index:4;background:var(--bg2);border:1px solid var(--line);padding:6px 8px}
 .phead select{width:auto;flex:1;min-width:0;padding:5px 8px}
 .pbar{display:flex;gap:3px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:thin}
@@ -412,10 +412,10 @@ body.dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 <header>
   <div class="bar">
     <div class="logo">Night City Table <small>// RED 2045</small></div>
-    <nav id="nav"></nav>
-    <div class="seg winsel" id="winSel" title="Fenster nebeneinander"></div>
+    <div class="seg winsel" id="winSel" title="Fenster nebeneinander" style="margin-left:auto"></div>
     <button class="btn small" id="sndBtn" type="button" aria-pressed="true">Ton an</button>
     <div class="who" id="who"></div>
+    <nav id="nav"></nav>
   </div>
 </header>
 <input type="file" id="portraitFile" accept="image/*" hidden>
