@@ -342,7 +342,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--cyan);outline:none}
 .portrait-drop.over{border-color:var(--yel);box-shadow:0 0 22px rgba(245,228,0,.5);transform:scale(1.04)}
 #view.split{max-width:none;display:grid;grid-template-columns:repeat(var(--pn),minmax(0,1fr));gap:14px;align-items:start}
 body.multi #nav{display:none}
-#view.split .pane{display:flex;flex-direction:column;gap:14px;min-width:0;height:calc(100dvh - var(--hdr,120px) - 28px - var(--qb,0px));overflow:auto;overscroll-behavior:contain;padding:0 4px 24px 0;border-top:2px solid transparent}
+#view.split .pane{display:flex;flex-direction:column;gap:14px;max-height:calc((100dvh - var(--hdr,120px) - 28px - var(--qb,0px)) / var(--pr,1) - (var(--pr,1) - 1) * 14px);min-width:0;height:calc(100dvh - var(--hdr,120px) - 28px - var(--qb,0px));overflow:auto;overscroll-behavior:contain;padding:0 4px 24px 0;border-top:2px solid transparent}
 #view.split .pane.focus{border-top-color:var(--yel)}
 #view.split .pbody{display:grid;gap:14px;min-width:0;flex:1 0 auto;align-content:start}
 
@@ -702,7 +702,7 @@ let tab="char";
 let room=null,myName="",fs=null,offlineReason="",players={},authUid=null,joinErr="",joinBusy=false;
 const TABLIST=[["char","Charakter"],["dice","Würfeln"],["party","Crew"],["map","Karte"],["camp","Kampagne"],["cat","Katalog"],["shop","Shop"],["rules","Regeln"],["dm","DM"]];
 let panes=[],activePane=0;
-try{const sv=JSON.parse(localStorage.getItem("nct-panes")||"[]");if(Array.isArray(sv)&&sv.length>1&&sv.every(k=>TABLIST.some(t=>t[0]===k)))panes=sv.slice(0,3)}catch(e){}
+try{const sv=JSON.parse(localStorage.getItem("nct-panes")||"[]");if(Array.isArray(sv)&&sv.length>1&&sv.every(k=>TABLIST.some(t=>t[0]===String(k).split(":")[0])))panes=sv.slice(0,6)}catch(e){}
 const savePanes=()=>{try{localStorage.setItem("nct-panes",JSON.stringify(panes))}catch(e){}};
 let inits={},folding=false,combat={},notes=[],noteKind="handout",skMode=(()=>{try{return localStorage.getItem("nct-skmode")||"learned"}catch(e){return "learned"}})();
 let rulesFor=null;
@@ -930,7 +930,7 @@ function enterRoom(){
   db.doc("shop/main").onSnapshot(s=>{shop=s.exists?s.data():{items:[]};renderSoon()},()=>{});
   db.collection("chars").onSnapshot(s=>{allChars={};s.docs.forEach(d=>allChars[d.id]=normalizeChar(d.data()));const seen=new Set();chars={};Object.entries(allChars).sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0)).forEach(([id,c])=>{const o=c.owner||id;if(c.active===false||seen.has(o))return;seen.add(o);chars[id]=c});
     if(!s.metadata.fromCache)clearTimeout(t);
-    loadNames();renderSoon();
+    loadNames();renderSoon();if(isDM()&&mapState.active&&maps[mapState.active])setTimeout(()=>autoCrew(mapState.active),800);
   },e=>{clearTimeout(t);toast(errMsg(e))});
   db.doc("game/combat").onSnapshot(s=>{combat=s.exists?s.data():{};foldInits();renderSoon()},e=>toast(errMsg(e)));
   db.collection("inits").onSnapshot(s=>{inits={};s.docs.forEach(d=>inits[d.id]=d.data());foldInits();renderSoon()},e=>toast(errMsg(e)));
@@ -981,12 +981,12 @@ function render(){
   const top=mode==="online"&&(!(openTabs().length===1&&openTabs()[0]==="rules")||myInitPending())?lootBanner()+combatBanner():"";
   document.body.classList.toggle("multi",panes.length>1&&window.innerWidth>=760);
   if(panes.length>1&&window.innerWidth>=760){
-    v.classList.add("split");v.style.setProperty("--pn",panes.length);
+    v.classList.add("split");v.style.setProperty("--pn",Math.min(3,panes.length));v.style.setProperty("--pr",Math.ceil(panes.length/3));
     [...v.children].forEach(ch=>{if(!ch.classList.contains("pane"))ch.remove()});
     panes.forEach((k,i)=>{let p=v.children[i];
       if(!p){p=document.createElement("div");p.className="pane";p.innerHTML=`<div class="phead"></div><div class="pbody"></div>`;v.appendChild(p)}
       p.dataset.i=i;p.classList.toggle("focus",i===activePane);
-      p.querySelector(".phead").innerHTML=`<div class="pbar" role="toolbar" aria-label="Inhalt von Fenster ${i+1}">${TABLIST.map(([key,l])=>{const used=key!==k&&panes.includes(key);return `<button data-act="psel" data-pane="${i}" data-k="${key}" aria-pressed="${key===k}" ${used?`disabled title="Schon in Fenster ${panes.indexOf(key)+1} offen"`:""}>${l}${navBadge(key)}</button>`}).join("")}</div><button class="btn small" data-act="pclose" data-i="${i}" aria-label="Fenster ${i+1} schliessen">✕</button>`;
+      p.querySelector(".phead").innerHTML=`<div class="pbar" role="toolbar" aria-label="Inhalt von Fenster ${i+1}">${TABLIST.map(([key,l])=>{const used=key!=="dm"&&key!==k&&panes.includes(key),on=key===tabBase(k);return `<button data-act="psel" data-pane="${i}" data-k="${key}" aria-pressed="${on}" ${used?`disabled title="Schon in Fenster ${panes.indexOf(key)+1} offen"`:""}>${l}${navBadge(key)}</button>`}).join("")}</div><button class="btn small" data-act="pclose" data-i="${i}" aria-label="Fenster ${i+1} schliessen">✕</button>`;
       const body=p.querySelector(".pbody");if(body.dataset.key!==k){body.innerHTML="";body.dataset.key=k}
       renderInto(body,k,i===0?top:"")});
     while(v.children.length>panes.length)v.lastChild.remove();
@@ -1010,7 +1010,7 @@ function renderInto(el,k,top){
   else if(k==="cat")el.innerHTML=top+viewCatalog();
   else if(k==="shop")el.innerHTML=top+viewShop();
   else if(k==="rules")el.innerHTML=top+viewRules();
-  else if(k==="dm")el.innerHTML=top+(isDM()?viewDM():viewClaimDM());
+  else if(tabBase(k)==="dm"){const pi=el.closest&&el.closest(".pane");el.innerHTML=top+(isDM()?viewDM(k.split(":")[1]||dmSub,pi?+pi.dataset.i:null):viewClaimDM())}
 }
 const openTabs=()=>panes.length>1?panes:[tab];
 function openTab(key,el){
@@ -1040,8 +1040,8 @@ function renderDock(){
 function renderNav(){
   const sb=$("#sndBtn");if(sb){sb.textContent=SFX.on?"Ton an":"Ton aus";sb.setAttribute("aria-pressed",SFX.on)}
   const tabs=TABLIST;
-  const open=panes.length>1?panes:[tab];$("#nav").innerHTML=tabs.map(([k,l])=>`<button data-tab="${k}" aria-current="${open.includes(k)}"${panes.length>1&&panes[activePane]===k?' class="pfocus"':""}>${l}${navBadge(k)}</button>`).join("");
-  $("#winSel").innerHTML=[1,2,3].map(n=>`<button data-act="wins" data-d="${n}" aria-pressed="${(panes.length||1)===n}" aria-label="${n} ${n===1?"Fenster":"Fenster nebeneinander"}">${n===1?"▢":n===2?"▢▢":"▢▢▢"}</button>`).join("");
+  const open=panes.length>1?panes:[tab];$("#nav").innerHTML=tabs.map(([k,l])=>`<button data-tab="${k}" aria-current="${open.map(tabBase).includes(k)}"${panes.length>1&&tabBase(panes[activePane])===k?' class="pfocus"':""}>${l}${navBadge(k)}</button>`).join("");
+  $("#winSel").innerHTML=(isDM()&&window.innerWidth>=1100?[1,2,3,4,6]:[1,2,3]).map(n=>`<button data-act="wins" data-d="${n}" aria-pressed="${(panes.length||1)===n}" aria-label="${n} ${n===1?"Fenster":"Fenster nebeneinander"}">${n===1?"▢":n===2?"▢▢":n===3?"▢▢▢":n===4?"▢▢▢+1":"▢▢▢×2"}</button>`).join("");
   const hd=document.querySelector("header");if(hd)document.documentElement.style.setProperty("--hdr",hd.offsetHeight+"px");
   const w=[];
   if(mode==="offline")w.push(`<span>Offline-Modus: nur Würfeln</span>`);
@@ -2175,6 +2175,14 @@ function playerMapPanel(m,mine){const c=myChar(),inv=(c&&c.inventory)||[],near=n
   return `${near.length?`<div class="foecard stack" style="gap:6px"><span class="label">Hier liegt</span>${near.map(t=>`<div class="row" style="justify-content:space-between"><span><b>${esc(t.name)}</b>${t.byName?` <span class="muted" style="font-size:12px">abgelegt von ${esc(t.byName)}</span>`:""}</span><button class="btn small primary" data-act="mpick" data-id="${t.id}">Aufheben</button></div>`).join("")}</div>`:""}
   ${inv.length?`<details><summary class="label" style="cursor:pointer">Gegenstand hier ablegen</summary><div class="row" style="align-items:end;margin-top:6px"><div class="field" style="flex:1 1 180px"><label class="label" for="mdrop-it">Aus dem Rucksack</label><select id="mdrop-it">${inv.map(x=>`<option value="${x.id}">${esc(x.name)} (${x.qty}×)</option>`).join("")}</select></div><button class="btn small" data-act="mdropit">Ablegen</button></div><p class="muted" style="margin:6px 0 0;font-size:13px">Er liegt dann neben deiner Figur. Wer direkt daneben steht, kann ihn aufheben.</p></details>`:""}`}
 
+/* Karten-Einstellungen schreiben; Kalibrierung ändert die Felderzahl */
+const mapSetT={};
+function mapSet(id,key,val,save){const d=maps[id];if(!d)return;const [a,b2]=key.split(".");const nd={...d};if(b2){nd[a]={...(a==="grid"?gridOf({id}):d[a]||{}),[b2]:val}}else nd[a]=val;
+  let regrid=false;if(a==="img"){const [w,h]=calcImgGrid(nd.img);if(w!==d.w||h!==d.h){regrid=true;nd.w=w;nd.h=h;nd.tiles="f".repeat(w*h);nd.deco=".".repeat(w*h);nd.spawn=[];nd.start=[]}}
+  maps[id]=nd;if(mapLocal&&mapLocal.id===id)mapLocal=null;mapCaches.delete(id+":0");drawMap();
+  if(regrid){fogRev[id+"_0"]=new Set();mapTokens(id).forEach(t=>{if(t.x>=nd.w||t.y>=nd.h){tokens[t.id]={...tokens[t.id],x:Math.min(t.x,nd.w-1),y:Math.min(t.y,nd.h-1)}}})}
+  clearTimeout(mapSetT[id]);if(!save)return;mapSetT[id]=setTimeout(async()=>{try{await db.doc("maps/"+id).set({...maps[id],at:Date.now()});if(regrid){const S=fogRev[id+"_0"]||new Set();await db.doc("fog/"+id+"_0").set({r:"0".repeat(nd.w*nd.h),w:nd.w,h:nd.h,at:Date.now()});for(const t of mapTokens(id))await db.doc("tokens/"+t.id).set(tokens[t.id])}}catch(e){toast(errMsg(e))}if(key!=="name"&&key!=="folder")return;render()},250)}
+
 /* Skywalks als "x,y,dx,dy,len,fl"-Strings (Firestore kennt keine Arrays in Arrays) */
 function walkList(m){return (m.walks||[]).map(w=>Array.isArray(w)?w:String(w).split(",").map(Number)).filter(w=>w.length===6&&w.every(isFinite))}
 async function openChild(m,cx,cy){
@@ -2231,7 +2239,7 @@ function visibleSet(m,srcs,R=12){const v=new Set();for(const [sx,sy] of srcs){fo
 /* Daten */
 const seenMaps=()=>[...new Set([...(mapState.seen||[]),mapState.active].filter(id=>id&&maps[id]))];
 const curMapId=()=>isDM()&&mapView.id&&maps[mapView.id]?mapView.id:((mapState.active&&maps[mapState.active]?mapState.active:(isDM()?(Object.keys(maps)[0]||null):null)));
-function setLive(id){return write("game/map",x=>({...(x||{}),active:id,seen:[...new Set([...((x&&x.seen)||[]),id])].filter(k=>maps[k]||k===id)}))}
+function setLive(id){return write("game/map",x=>({...(x||{}),active:id,seen:[...new Set([...((x&&x.seen)||[]),id])].filter(k=>maps[k]||k===id)})).then(()=>autoCrew(id))}
 function curMap(){const id=curMapId();if(!id)return null;const z=viewZ(id);if(mapLocal&&mapLocal.id===id&&mapLocal.z===z)return mapLocal;return levelMap(id,z)}
 
 /* Ebenen */
@@ -2356,6 +2364,8 @@ function drawDeco(x,m,d,px,py,S,cx,cy){
   else if(d==="Z"){r(.06,.06,.88,.88,"#b9b4a8");x.strokeStyle="rgba(0,0,0,.4)";for(let i=1;i<5;i++){x.beginPath();x.moveTo(px+S*.1,py+S*i*.2);x.lineTo(px+S*.9,py+S*i*.2);x.stroke()}o(.06,.06,.88,.88)}
 }
 function buildMapCache(m){
+  if(flatMap(maps[m.id]||m)){const d=maps[m.id]||m,img=d.img,k0=m.id+"|"+m.w+"x"+m.h+"|"+(d.bg||"")+"|"+(img?[img.id,img.cell,img.ox,img.oy].join(","):""),hit0=mapCaches.get(m.id+":"+(m.z||0)),full=k0+(img&&mapImgs[img.id]&&mapImgs[img.id].ok?"|ok":"|wait");
+    if(hit0&&hit0.key===full)return hit0.c;return buildFlatCache(m,hit0,k0)}
   const key=m.id+"|"+(m.z||0)+"|"+m.tiles+"|"+m.deco;const hit=mapCaches.get(m.id+":"+(m.z||0));if(hit&&hit.key===key)return hit.c;
   const c=hit&&hit.c.width===m.w*MS&&hit.c.height===m.h*MS?hit.c:document.createElement("canvas");c.width=m.w*MS;c.height=m.h*MS;const x=c.getContext("2d");
   x.clearRect(0,0,c.width,c.height);if(!(m.z>0)){x.fillStyle=m.z<0?"#2b2622":"#26262b";x.fillRect(0,0,c.width,c.height)}
@@ -2376,6 +2386,99 @@ function buildMapCache(m){
   mapCaches.set(m.id+":"+(m.z||0),{key,c});return c;
 }
 /* Ansicht */
+/* ===== Karten-Modul: Bildkarten, Raster, Tokens ===== */
+const flatMap=m=>!!m&&(m.kind==="image"||m.kind==="grid");
+const GRIDDEF={on:true,color:"#3ef0ff",a:.35};
+function gridOf(m){const d=maps[m.id]||m;return d.grid||(flatMap(d)?GRIDDEF:{on:false,color:"#ffffff",a:.18})}
+function mapOptions(list,m){const by={};list.forEach(([id,x])=>{const f=(x.folder||"").trim()||"Ohne Ordner";(by[f]=by[f]||[]).push([id,x])});
+  const keys=Object.keys(by).sort((a,b)=>a==="Ohne Ordner"?1:b==="Ohne Ordner"?-1:a.localeCompare(b,"de"));
+  const opt=([id,x])=>`<option value="${id}" ${id===(m&&m.id)?"selected":""}>${esc(x.name||"Karte")}${id===mapState.active?" · live":""}</option>`;
+  return keys.length===1&&keys[0]==="Ohne Ordner"?by[keys[0]].map(opt).join(""):keys.map(k=>`<optgroup label="${esc(k)}">${by[k].map(opt).join("")}</optgroup>`).join("")}
+function mapFolders(){return [...new Set(Object.values(maps).map(x=>(x.folder||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de"))}
+function newMapSrcHtml(){const src=mapView.gsrc||"gen",u=mapView.upl;
+  const meta=`<div class="row" style="align-items:end"><div class="field" style="flex:2 1 180px"><label class="label" for="nm-name">Name</label><input id="nm-name" placeholder="Afterlife, Hinterzimmer" value="${esc(mapView.nmName||"")}"></div>
+    <div class="field" style="flex:1 1 150px"><label class="label" for="nm-folder">Ordner</label><input id="nm-folder" list="nm-folders" placeholder="Watson, Combat Zone…" value="${esc(mapView.nmFolder||"")}"><datalist id="nm-folders">${mapFolders().map(f=>`<option value="${esc(f)}">`).join("")}</datalist></div></div>`;
+  return `<div class="foecard stack" style="gap:10px"><span class="label">Neue Karte aus</span><div class="seg"><button data-act="mgsrc" data-k="gen" aria-pressed="${src==="gen"}">Generator</button><button data-act="mgsrc" data-k="img" aria-pressed="${src==="img"}">Eigenem Bild</button><button data-act="mgsrc" data-k="grid" aria-pressed="${src==="grid"}">Leerem Raster</button></div>
+  ${src==="img"?`${meta}<div class="row" style="align-items:end"><label class="btn" for="nm-file" style="cursor:pointer">${u?"Anderes Bild wählen":"Bild wählen (JPG, PNG, WebP)"}</label><input type="file" id="nm-file" accept="image/jpeg,image/png,image/webp" hidden>${u?`<span class="muted" style="font-size:13px">${u.w} × ${u.h} px · ${Math.round(u.data.length/1024)} KB nach dem Verkleinern</span>`:""}</div>
+    ${u?`<img src="${u.data}" alt="Vorschau der Karte" style="max-height:160px;width:auto;border:1px solid var(--line)"><div class="row" style="align-items:end"><div class="field" style="flex:0 0 150px"><label class="label" for="nm-cells">Felder in der Breite</label><input id="nm-cells" type="number" min="4" max="200" value="${mapView.nmCells||Math.max(8,Math.round(u.w/70))}"></div><button class="btn primary" data-act="mimgcreate">Karte anlegen</button></div>
+    <p class="muted" style="margin:0;font-size:13px">Zähl die Rasterfelder auf dem Bild in der Breite. Feinjustieren kannst du danach unter „Raster“. 1 Feld = 2 m.</p>`:`<p class="muted" style="margin:0;font-size:13px">Grosse Bilder werden auf höchstens 2400 px verkleinert, damit sie bei allen schnell laden.</p>`}`
+  :src==="grid"?`${meta}<div class="row" style="align-items:end"><div class="field" style="flex:0 0 100px"><label class="label" for="nm-w">Breite</label><input id="nm-w" type="number" min="4" max="150" value="30"></div><div class="field" style="flex:0 0 100px"><label class="label" for="nm-h">Höhe</label><input id="nm-h" type="number" min="4" max="150" value="20"></div>
+    <div class="field" style="flex:0 0 120px"><label class="label" for="nm-bg">Hintergrund</label><input id="nm-bg" type="color" value="#1b1826"></div><button class="btn primary" data-act="mblankcreate">Karte anlegen</button></div><p class="muted" style="margin:0;font-size:13px">In Feldern. 30 × 20 Felder sind 60 × 40 m.</p>`:""}</div>`}
+function mapSettingsHtml(m){if(!isDM())return "";const d=maps[m.id]||{},g=gridOf(m),img=d.img;
+  return `<details class="toolgrp" ${mapView.setOpen?"open":""} id="mapSetDet"><summary class="label" style="cursor:pointer">Karte &amp; Raster ${m.id===mapState.active?'<span class="chip you">live</span>':'<span class="chip">Vorbereitung · Spieler sehen sie nicht</span>'}</summary>
+    <div class="stack" style="gap:10px;margin-top:8px"><div class="row" style="align-items:end"><div class="field" style="flex:2 1 160px"><label class="label" for="ms-name">Name</label><input id="ms-name" data-mset="name" value="${esc(d.name||"")}"></div>
+      <div class="field" style="flex:1 1 140px"><label class="label" for="ms-folder">Ordner</label><input id="ms-folder" data-mset="folder" list="ms-folders" value="${esc(d.folder||"")}" placeholder="Watson…"><datalist id="ms-folders">${mapFolders().map(f=>`<option value="${esc(f)}">`).join("")}</datalist></div></div>
+    <div class="row" style="align-items:center;gap:14px"><label class="row" style="gap:6px"><input type="checkbox" data-mset="grid.on" ${g.on?"checked":""} style="width:auto"> <span>Raster zeigen</span></label>
+      <label class="row" style="gap:6px"><span class="muted">Farbe</span><input type="color" data-mset="grid.color" value="${esc(g.color)}" style="width:44px;padding:0;height:30px"></label>
+      <label class="row" style="gap:6px;flex:1 1 160px"><span class="muted">Deckkraft</span><input type="range" min="0.05" max="1" step="0.05" data-mset="grid.a" value="${g.a}" style="flex:1"></label></div>
+    ${img?`<span class="label">Kalibrierung <span class="muted" style="text-transform:none;letter-spacing:0">· Raster aufs Bild legen</span></span>
+      <div class="row" style="align-items:end">${[["cell","Feldgrösse px",4,600],["ox","Versatz X",0,600],["oy","Versatz Y",0,600]].map(([k,l,a,b])=>`<div class="field" style="flex:0 0 150px"><label class="label" for="ms-${k}">${l}</label><div class="row" style="gap:4px;flex-wrap:nowrap"><button class="btn small" data-act="mcal" data-k="${k}" data-d="-1">−</button><input id="ms-${k}" type="number" step="0.5" min="${a}" max="${b}" data-mset="img.${k}" value="${img[k]}" style="width:70px"><button class="btn small" data-act="mcal" data-k="${k}" data-d="1">+</button></div></div>`).join("")}</div>
+      <p class="muted" style="margin:0;font-size:13px">Bild ${img.pw} × ${img.ph} px → ${d.w} × ${d.h} Felder (${d.w*2} × ${d.h*2} m). Ändert sich die Felderzahl, wird der Nebel dieser Karte zurückgesetzt.</p>`:""}
+    </div></details>`}
+/* Bild verkleinern und in Stücken speichern (Datenbank-Dokumente haben eine Grössengrenze) */
+function shrinkImage(file){return new Promise((res,rej)=>{if(!file||!/^image\/(jpeg|png|webp)$/.test(file.type||"")){rej(new Error("type"));return}
+  const fr=new FileReader();fr.onerror=()=>rej(new Error("read"));fr.onload=()=>{const im=new Image();im.onerror=()=>rej(new Error("img"));im.onload=()=>{
+    const k=Math.min(1,2400/Math.max(im.naturalWidth,im.naturalHeight)),w=Math.round(im.naturalWidth*k),h=Math.round(im.naturalHeight*k),c=document.createElement("canvas");c.width=w;c.height=h;
+    const x=c.getContext("2d");x.imageSmoothingQuality="high";x.drawImage(im,0,0,w,h);let data=c.toDataURL("image/webp",.8);if(!data.startsWith("data:image/webp"))data=c.toDataURL("image/jpeg",.82);
+    if(data.length>2600000)data=c.toDataURL("image/jpeg",.6);res({data,w,h})};im.src=fr.result};fr.readAsDataURL(file)})}
+const IMG_CHUNK=300000,mapImgs={};
+async function saveMapImage(data){const id=uid(),n=Math.ceil(data.length/IMG_CHUNK);for(let k=0;k<n;k++)await db.doc(`mapimg/${id}_${k}`).set({d:data.slice(k*IMG_CHUNK,(k+1)*IMG_CHUNK),i:k,n,at:Date.now()});return {id,n}}
+function mapImage(img){if(!img||!img.id)return null;let e=mapImgs[img.id];if(e)return e.im&&e.ok?e.im:null;
+  e=mapImgs[img.id]={ok:false};(async()=>{try{const parts=await Promise.all(Array.from({length:img.n||1},(_,k)=>db.doc(`mapimg/${img.id}_${k}`).get()));
+    if(parts.some(p=>!p.exists))throw 0;const data=parts.map(p=>p.data().d).join("");const im=new Image();im.onload=()=>{e.ok=true;e.im=im;mapCaches.forEach((v,k)=>{if(v)v.key=""});drawMap()};im.src=data}
+    catch(er){setTimeout(()=>{delete mapImgs[img.id]},5000)}})();return null}
+function calcImgGrid(img){const c=Math.max(4,+img.cell||70);return [Math.max(1,Math.floor((img.pw-(+img.ox||0))/c)),Math.max(1,Math.floor((img.ph-(+img.oy||0))/c))]}
+function flatDoc(base){const w=base.w,h=base.h;return {...base,type:base.kind,scale:2,fog:true,tiles:"f".repeat(w*h),deco:".".repeat(w*h),spawn:[],start:[],grid:{...GRIDDEF},at:Date.now()}}
+function buildFlatCache(m,hit,key){const d=maps[m.id]||m,img=d.img,S=img?clamp(Math.round(+img.cell||32),24,96):40;
+  const c=hit&&hit.c.width===m.w*S&&hit.c.height===m.h*S?hit.c:document.createElement("canvas");c.width=m.w*S;c.height=m.h*S;const x=c.getContext("2d");
+  x.fillStyle=d.bg||"#1b1826";x.fillRect(0,0,c.width,c.height);
+  if(img){const im=mapImage(img);if(im){const k=S/(+img.cell||70);x.imageSmoothingQuality="high";x.drawImage(im,-(+img.ox||0)*k,-(+img.oy||0)*k,img.pw*k,img.ph*k)}
+    else{x.fillStyle="#9a8fb8";x.font="600 "+Math.round(S*.6)+"px IBM Plex Sans,Arial,sans-serif";x.textAlign="center";x.fillText("Karte lädt …",c.width/2,c.height/2)}}
+  mapCaches.set(m.id+":"+(m.z||0),{key:key+(img&&mapImgs[img.id]&&mapImgs[img.id].ok?"|ok":"|wait"),c});return c}
+function drawGrid(x,m,ox,oy,cs,W,H){const g=gridOf(m);if(!g.on||cs<5)return;x.save();x.globalAlpha=clamp(+g.a||.3,0,1);x.strokeStyle=g.color||"#3ef0ff";x.lineWidth=1;x.beginPath();
+  const x0=Math.max(0,Math.floor(-ox/cs)),x1=Math.min(m.w,Math.ceil((W-ox)/cs)),y0=Math.max(0,Math.floor(-oy/cs)),y1=Math.min(m.h,Math.ceil((H-oy)/cs));
+  for(let i=x0;i<=x1;i++){const px=Math.round(ox+i*cs)+.5;x.moveTo(px,oy+y0*cs);x.lineTo(px,oy+y1*cs)}for(let j=y0;j<=y1;j++){const py=Math.round(oy+j*cs)+.5;x.moveTo(ox+x0*cs,py);x.lineTo(ox+x1*cs,py)}x.stroke();x.restore()}
+
+/* Tokens: HP, Status, Gruppen */
+const TSTAT=[["sw","Seriously Wounded","SW","#f5a623"],["mw","Mortally Wounded","MW","#ff4f5e"],["stun","Stunned","ST","#b46cff"],["prone","Prone","PR","#9aa3ad"],["grab","Grabbed","GR","#1abc9c"],["blind","Blinded","BL","#5d6d7e"],["fire","On Fire","FI","#ff7a1a"],["poison","Poisoned","PO","#7bd23c"],["cover","In Cover","CV","#3ef0ff"]];
+function tokHP(t){if(t.kind==="pc"){const c=chars[t.ref]||allChars[t.ref];if(!c)return null;return [c.hp||0,c.hpMax||hpMax(c.stats)]}
+  if(t.cid){const e=(combat.order||[]).find(o=>o.id===t.cid);if(e&&e.hpMax)return [e.hp,e.hpMax]}
+  const mx=t.hpMax||(t.foe&&t.foe.hp)||0;if(!mx)return null;return [t.hp??mx,mx]}
+function tokStats(t){let st=(t.st||[]).slice(),hp=tokHP(t);if(hp){st=st.filter(k=>k!=="sw"&&k!=="mw");if(hp[0]<1)st.unshift("mw");else if(hp[0]<Math.ceil(hp[1]/2))st.unshift("sw")}return st}
+function drawTokExtras(x,px,py,r,t,showHp){const hp=tokHP(t);
+  if(showHp&&hp&&r>=6){const w=r*2,y=py+r+3;x.fillStyle="rgba(0,0,0,.75)";x.fillRect(px-r-1,y-1,w+2,5);const f=clamp(hp[0]/hp[1],0,1);x.fillStyle=f>.5?"#5dffa0":hp[0]>0?"#f5e400":"#ff4f5e";x.fillRect(px-r,y,w*f,3)}
+  const st=tokStats(t);if(st.length&&r>=7){const s=Math.max(9,r*.62);x.font=`700 ${Math.round(s*.62)}px "IBM Plex Mono",monospace`;x.textAlign="center";x.textBaseline="middle";
+    st.slice(0,4).forEach((k,i)=>{const d=TSTAT.find(q=>q[0]===k);if(!d)return;const bx=px+r*.75+i*(s+1)-(st.length>1?0:0),by=py-r*.9;x.fillStyle=d[3];x.fillRect(bx-s/2,by-s/2,s,s);x.fillStyle="#0b0912";x.fillText(d[2],bx,by+.5)})}}
+function tokCanSeeHp(t){return isDM()&&!mapView.preview||t.kind==="pc"}
+function statChips(t,canEdit){const st=tokStats(t),auto=tokHP(t);return `<div class="chips">${TSTAT.map(([k,l,a,c])=>{const on=st.includes(k),isAuto=auto&&(k==="sw"||k==="mw");
+  return canEdit&&!isAuto?`<button class="pick" data-act="tokst" data-id="${t.id}" data-k="${k}" aria-pressed="${on}" style="${on?`border-color:${c};color:${c}`:""}"><b style="font-size:12px">${l}</b></button>`:on?`<span class="chip" style="border-color:${c};color:${c}">${l}${isAuto?" · auto":""}</span>`:""}).join("")}</div>`}
+function hpCtl(t){const hp=tokHP(t);if(!hp)return "";return `<div class="row" style="gap:4px;align-items:center"><span class="label">HP</span><button class="btn small" data-act="tokhp" data-id="${t.id}" data-d="-5">−5</button><button class="btn small" data-act="tokhp" data-id="${t.id}" data-d="-1">−1</button><b class="mono">${hp[0]}/${hp[1]}</b><button class="btn small" data-act="tokhp" data-id="${t.id}" data-d="1">+1</button><button class="btn small" data-act="tokhp" data-id="${t.id}" data-d="5">+5</button>${t.kind==="pc"?'<span class="muted" style="font-size:12px">gleich wie im Charakterbogen</span>':""}</div>`}
+function ownTokHtml(m,t){const c=chars[t.ref];if(!c)return "";const ws=(c.weapons||[]).filter(w=>w.slot!=="pack");
+  return `<div class="foecard stack" style="gap:6px"><div class="row" style="justify-content:space-between"><b style="font-family:var(--f-display);font-size:16px">${esc(c.handle||c.name)}</b><span class="mono muted" style="font-size:12px">MOVE ${c.stats.MOVE} · ${c.stats.MOVE*2} m · Rennen ${c.stats.MOVE*4} m</span></div>
+    ${hpCtl(t)}<div class="mono muted" style="font-size:12px">SP Kopf ${(c.armor&&c.armor.head||{sp:0}).sp} · Körper ${(c.armor&&c.armor.body||{sp:0}).sp}${ws.length?" · "+ws.map(w=>esc(w.name)+" "+esc(w.dmg)).join(", "):""}</div>
+    <span class="label">Status</span>${statChips(t,true)}</div>`}
+function otherTokHtml(t){if(t.hidden||!tokens[t.id])return "";return `<div class="foecard stack" style="gap:6px"><b style="font-family:var(--f-display);font-size:16px">${esc(t.name)}</b>${t.kind==="pc"?hpCtlRO(t):""}${statChips(t,false)||""}</div>`}
+function hpCtlRO(t){const hp=tokHP(t);return hp?`<div class="mono muted" style="font-size:12px">HP ${hp[0]}/${hp[1]}</div>`:""}
+function freeCellsNear(m,cx,cy,n){const occ=new Set(lvTokens(m).map(t=>t.y*m.w+t.x)),out=[],st=clamp(cy,0,m.h-1)*m.w+clamp(cx,0,m.w-1),seen=new Set([st]),q=[st];
+  while(q.length&&out.length<n){const i=q.shift(),x=i%m.w,y=(i-x)/m.w;if(walkable(m,x,y)&&!occ.has(i))out.push(i);for(const [dx,dy] of [[1,0],[0,1],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=m.w||Y>=m.h)continue;const j=Y*m.w+X;if(!seen.has(j)){seen.add(j);q.push(j)}}}
+  return out}
+function viewCenterCell(m){const cv=$("#mapCanvas");const [fx,fy]=s2c((cv&&cv.clientWidth||600)/2,(cv&&cv.clientHeight||400)/2);return [clamp(Math.floor(fx),0,m.w-1),clamp(Math.floor(fy),0,m.h-1)]}
+let crewBusy=false;
+async function autoCrew(id){const m=levelMap(id,0);if(!m||crewBusy||!isDM())return;const miss=Object.entries(chars).filter(([cid])=>!mapTokens(id).some(t=>t.ref===cid));if(!miss.length)return;crewBusy=true;
+  try{let cells=(m.start||[]).filter(i=>walkable(m,i%m.w,Math.floor(i/m.w))&&!lvTokens(m).some(t=>t.y*m.w+t.x===i));if(cells.length<miss.length){const c0=cells[0]??Math.floor(m.h/2)*m.w+Math.floor(m.w/2);cells=freeCellsNear(m,c0%m.w,Math.floor(c0/m.w),miss.length)}
+    for(let k=0;k<miss.length;k++){const [cid,c]=miss[k],i=cells[k%Math.max(1,cells.length)]??0,tid=uid(),tok={map:id,z:0,x:i%m.w,y:Math.floor(i/m.w),kind:"pc",ref:cid,name:c.handle||c.name,hidden:false,at:Date.now()};tokens[tid]=tok;await db.doc("tokens/"+tid).set(tok)}}
+  catch(e){toast(errMsg(e))}crewBusy=false;drawMap()}
+function groupsHtml(m){const g={};lvTokens(m).filter(t=>t.grp).forEach(t=>{(g[t.grp]=g[t.grp]||[]).push(t)});const ks=Object.keys(g);if(!ks.length)return "";
+  return `<span class="label">Gruppen</span><div class="inv">${ks.map(k=>{const L=g[k],hid=L.filter(t=>t.hidden).length;return `<div class="item cat"><span class="n"><b>${esc(k)} ×${L.length}</b><small>${hid?hid+" versteckt":"alle sichtbar"}</small></span><span class="acts"><button class="btn small" data-act="grphide" data-k="${esc(k)}">${hid?"Aufdecken":"Verstecken"}</button><button class="btn small" data-act="grpinit" data-k="${esc(k)}">In die Initiative</button><button class="btn small mag" data-act="grpdel" data-k="${esc(k)}">Löschen</button></span></div>`}).join("")}</div>`}
+function npcFormHtml(){return `<details><summary class="label" style="cursor:pointer">Eigener NPC oder Gruppe</summary><form data-form="npcnew" class="row" style="align-items:end;margin-top:8px">
+  <div class="field" style="flex:2 1 150px"><label class="label" for="nn-n">Name</label><input id="nn-n" required placeholder="Maelstrom"></div>
+  <div class="field" style="flex:0 0 70px"><label class="label" for="nn-c">Anzahl</label><input id="nn-c" type="number" min="1" max="20" value="1"></div>
+  <div class="field" style="flex:0 0 70px"><label class="label" for="nn-hp">HP</label><input id="nn-hp" type="number" min="1" value="30"></div>
+  <div class="field" style="flex:0 0 70px"><label class="label" for="nn-sp">SP</label><input id="nn-sp" type="number" min="0" value="7"></div>
+  <div class="field" style="flex:0 0 80px"><label class="label" for="nn-dmg">Schaden</label><input id="nn-dmg" value="3W6"></div>
+  <label class="row" style="gap:6px;padding-bottom:8px"><input type="checkbox" id="nn-hid" checked style="width:auto"> <span>versteckt</span></label>
+  <button class="btn primary">Auf die Karte</button></form><p class="muted" style="margin:6px 0 0;font-size:13px">Ab 2 Stück entsteht eine Gruppe, z. B. „Maelstrom ×4“. Sie erscheinen in der Mitte des Bildausschnitts.</p></details>`}
+
 function mapShell(){
   return `<div id="mapTop"></div><section class="panel stack" id="mapPanel"><div id="mapTools"></div>
     <div class="mapbox" id="mapBox"><canvas id="mapCanvas" aria-label="Spielkarte"></canvas><canvas id="ptrCanvas" aria-hidden="true"></canvas><div class="mapscale" id="mapScale" hidden></div><div class="mapzoom"><button class="btn small" data-act="mzoom" data-d="1" aria-label="Hineinzoomen">+</button><button class="btn small" data-act="mzoom" data-d="-1" aria-label="Herauszoomen">−</button><button class="btn small" data-act="miso" id="isoBtn" aria-pressed="false">Iso</button><button class="btn small" data-act="misolow" id="isoLowBtn" hidden>Wände ↕</button><button class="btn small" data-act="mfit">Ganz</button><button class="btn small" data-act="mme">Meine Figur</button></div></div>
@@ -2387,7 +2490,7 @@ function mapToolsHtml(){
   const sm=[];
   if(!dm)return (sm.length>1?`<div class="row" style="align-items:end"><div class="field" style="min-width:200px"><label class="label" for="pmap-sel">Karten, auf denen ihr schon wart</label><select id="pmap-sel">${sm.map(id=>`<option value="${id}" ${id===(m&&m.id)?"selected":""}>${esc(maps[id].name||"Karte")}${id===mapState.active?" · aktuell":""}</option>`).join("")}</select></div>${m&&m.id!==mapState.active?`<button class="btn small primary" data-act="pmapnow">Zurück zur aktuellen Karte</button>`:""}</div>`:"")+(m?`<div class="row" style="justify-content:space-between"><h2>${esc(m.name||"Karte")}${levelList(maps[m.id]).length>1?` <span class="tag">${esc(m.lvName||"")}</span>`:""}</h2><span class="muted" style="font-size:13px">Zieh deine Figur. Türen öffnest du durch Antippen, wenn du direkt daneben stehst. Auf einer Treppe wechselst du die Ebene.</span></div>`:"");
   return `<div class="row" style="justify-content:space-between;align-items:end"><div class="row" style="align-items:end">
-      ${list.length?`<div class="field" style="min-width:180px"><label class="label" for="map-sel">Karte</label><select id="map-sel">${list.map(([id,x])=>`<option value="${id}" ${id===(m&&m.id)?"selected":""}>${esc(x.name||"Karte")}${id===mapState.active?" · live":""}</option>`).join("")}</select></div>${m?`<div class="field" style="min-width:120px"><label class="label" for="map-scale">Massstab</label><select id="map-scale" ${maps[m.id]&&maps[m.id].kind?"disabled title=\"Fest für diese Kartenart\"":""}>${SCALES.map(([v,l])=>`<option value="${v}" ${v===mapScale(m.id)?"selected":""}>${l} · 1 Feld = ${v} m</option>`).join("")}${SCALES.some(s=>s[0]===mapScale(m.id))?"":`<option value="${mapScale(m.id)}" selected>Eigener · 1 Feld = ${mapScale(m.id)} m</option>`}</select></div>`:""}${m&&maps[m.id]&&(maps[m.id].kind==="city"||maps[m.id].kind==="district")?`<button class="btn small ${mapView.zoomPick?"primary":""}" data-act="mzoompick" aria-pressed="${!!mapView.zoomPick}">${mapView.zoomPick?(maps[m.id].kind==="city"?"Tippe auf ein Viertel …":"Tippe auf ein Gebäude oder eine Strasse …"):maps[m.id].kind==="city"?"Viertel öffnen":"Gebäude öffnen"}</button><span class="muted" style="font-size:12px;align-self:center">oder Doppelklick auf die Karte</span>`:""}${m&&maps[m.id]&&maps[m.id].kind==="tactical"?`<button class="btn small" data-act="mintfill">Innenräume würfeln</button><button class="btn small" data-act="mintclear">Innen leeren</button>`:""}${m&&maps[m.id]&&maps[m.id].parent&&maps[maps[m.id].parent]?`<button class="btn small" data-act="mparent">↑ ${esc(maps[maps[m.id].parent].name||"Zurück")}</button>`:""}`:""}
+      ${list.length?`<div class="field" style="min-width:180px"><label class="label" for="map-sel">Karte</label><select id="map-sel">${mapOptions(list,m)}</select></div>${m?`<div class="field" style="min-width:120px"><label class="label" for="map-scale">Massstab</label><select id="map-scale" ${maps[m.id]&&maps[m.id].kind?"disabled title=\"Fest für diese Kartenart\"":""}>${SCALES.map(([v,l])=>`<option value="${v}" ${v===mapScale(m.id)?"selected":""}>${l} · 1 Feld = ${v} m</option>`).join("")}${SCALES.some(s=>s[0]===mapScale(m.id))?"":`<option value="${mapScale(m.id)}" selected>Eigener · 1 Feld = ${mapScale(m.id)} m</option>`}</select></div>`:""}${m&&maps[m.id]&&(maps[m.id].kind==="city"||maps[m.id].kind==="district")?`<button class="btn small ${mapView.zoomPick?"primary":""}" data-act="mzoompick" aria-pressed="${!!mapView.zoomPick}">${mapView.zoomPick?(maps[m.id].kind==="city"?"Tippe auf ein Viertel …":"Tippe auf ein Gebäude oder eine Strasse …"):maps[m.id].kind==="city"?"Viertel öffnen":"Gebäude öffnen"}</button><span class="muted" style="font-size:12px;align-self:center">oder Doppelklick auf die Karte</span>`:""}${m&&maps[m.id]&&maps[m.id].kind==="tactical"?`<button class="btn small" data-act="mintfill">Innenräume würfeln</button><button class="btn small" data-act="mintclear">Innen leeren</button>`:""}${m&&maps[m.id]&&maps[m.id].parent&&maps[maps[m.id].parent]?`<button class="btn small" data-act="mparent">↑ ${esc(maps[maps[m.id].parent].name||"Zurück")}</button>`:""}`:""}
       <button class="btn ${mapView.gen?"":"primary"}" data-act="mgen">${mapView.gen?"Generator schliessen":"Neue Karte"}</button></div>
     ${m?`<div class="row">${mapState.active===m.id?'<span class="chip you">Spieler sehen diese Karte</span>':`<button class="btn small primary" data-act="mlive">Den Spielern zeigen</button>`}<button class="btn small" data-act="medit" aria-pressed="${mapView.edit}">${mapView.edit?"Bearbeiten beenden":"Bearbeiten"}</button><button class="btn small" data-act="mprev" aria-pressed="${mapView.preview}">${mapView.preview?"DM-Ansicht":"Spieleransicht"}</button></div>`:""}</div>
   ${m?`<div class="row" style="gap:8px;align-items:center"><span class="label">Ebene</span><div class="seg">${levelList(maps[m.id]).map(l=>`<button data-act="mlvl" data-d="${l.z}" aria-pressed="${l.z===m.z}">${esc(l.name)}</button>`).join("")}</div>
@@ -2398,10 +2501,11 @@ function mapToolsHtml(){
       <button class="pick" data-act="mlvnew" data-k="basement"><b>Keller</b><small>Untergeschoss mit Kanal und Lagerräumen</small></button>
       <button class="pick" data-act="mlvnew" data-k="empty"><b>Leer</b><small>Grundriss der Gebäude zum Selbstbauen</small></button></div>
       <p class="muted" style="margin:0;font-size:13px">Treppen und Leitern werden automatisch auf beiden Ebenen gesetzt. Steht eine Figur darauf, kann sie die Ebene wechseln.</p></div>`:""}`:""}
-  ${mapView.gen?`<div class="foecard stack" style="gap:10px"><span class="label">Umgebung</span><div class="chips">${MAPTYPES.map(([k,l,dsc])=>`<button class="pick" data-act="mgtype" data-k="${k}" aria-pressed="${mapView.gtype===k}"><b>${l}</b><small>${dsc}</small></button>`).join("")}</div>
+  ${mapView.gen?newMapSrcHtml():""}${mapView.gen&&(mapView.gsrc||"gen")==="gen"?`<div class="foecard stack" style="gap:10px"><span class="label">Umgebung</span><div class="chips">${MAPTYPES.map(([k,l,dsc])=>`<button class="pick" data-act="mgtype" data-k="${k}" aria-pressed="${mapView.gtype===k}"><b>${l}</b><small>${dsc}</small></button>`).join("")}</div>
     <span class="label">Grösse</span><div class="seg">${MAPSIZES.map(([k,l,w,h])=>`<button data-act="mgsize" data-k="${k}" aria-pressed="${mapView.gsize===k}">${l} · ${w}×${h}</button>`).join("")}</div>
     <div class="row"><button class="btn primary" data-act="mcreate">Karte erzeugen</button>${m&&m.type&&m.type!=="empty"?`<button class="btn" data-act="mreroll">Diese Karte neu würfeln</button>`:""}</div>
     <p class="muted" style="margin:0;font-size:13px">Wände, Türen, Böden und Einrichtung entstehen automatisch. Rot gestrichelte Felder sind versteckte Spawn-Punkte hinter Wänden und Türen. Dort kannst du Gegner im Voraus verstecken.</p></div>`:""}
+  ${m?mapSettingsHtml(m):""}
   ${m&&fogOn(m)?`<div class="toolgrp"><span class="label">Nebel <span class="muted" style="text-transform:none;letter-spacing:0">· nur du deckst auf</span></span><div class="chips">${FOGTOOLS.map(([k,l])=>`<button class="pick tool" data-act="mtool" data-k="${k}" aria-pressed="${mapView.tool===k}">${l}</button>`).join("")}<button class="btn small" data-act="fogall">Ebene ganz aufdecken</button><button class="btn small" data-act="fognone">Ebene ganz verdecken</button></div>
     ${mapView.tool.startsWith("fog")?`<p class="muted" style="margin:0;font-size:13px">${mapView.tool==="fogroom"?"Tippe in einen Raum: Boden bis zu den Wänden und Türen wird aufgedeckt.":mapView.tool==="fogrect"?"Rechteck aufziehen, das aufgedeckt wird.":mapView.tool==="fogon"?"Über die Karte wischen, um aufzudecken.":"Über die Karte wischen, um wieder zu verdecken."} Dunkel getönte Felder sehen die Spieler nicht. Gegner sehen sie nur in aufgedeckten Feldern mit Sichtlinie.</p>`:""}</div>`:""}
   ${m&&mapView.edit?`<div class="stack" style="gap:8px">${TOOLGROUPS.map(([gl,tools])=>`<div class="toolgrp"><span class="label">${gl}</span><div class="chips">${tools.map(([k,l])=>`<button class="pick tool" data-act="mtool" data-k="${k}" aria-pressed="${mapView.tool===k||(mapView.tool==="room"&&mapView.floor===k)}">${toolSwatch(k)}<b>${l}</b></button>`).join("")}</div></div>`).join("")}
@@ -2413,13 +2517,15 @@ function mapSideHtml0(){
   const m=curMap(),dm=isDM();
   if(!m)return dm?`<div class="empty">Noch keine Karte. Tippe auf „Neue Karte“ und wähle eine Umgebung.</div>`:`<div class="empty">Der DM hat noch keine Karte freigegeben.</div>`;
   const tk=lvTokens(m),sel=mapView.sel&&tokens[mapView.sel]?{...tokens[mapView.sel],id:mapView.sel}:null;
-  if(!dm){const mine=mapTokens(m.id).find(t=>t.ref===myCid());if(myChar()&&!mine)return `<div class="muted">Deine Figur steht noch nicht auf der Karte. Der DM setzt die Crew.</div>`;return mine?stairsHtml(m,{...mine})+((mine.z||0)===(m.z||0)?playerMapPanel(m,mine):""):""}
+  if(!dm){const mine=mapTokens(m.id).find(t=>t.ref===myCid());if(myChar()&&!mine)return `<div class="muted">Deine Figur steht noch nicht auf der Karte. Der DM setzt die Crew.</div>`;return (mine?stairsHtml(m,{...mine})+((mine.z||0)===(m.z||0)?ownTokHtml(m,mine):""):"")+(mapView.sel&&tokens[mapView.sel]&&(!mine||mapView.sel!==mine.id)?otherTokHtml({...tokens[mapView.sel],id:mapView.sel}):"")}
   const pcsMissing=Object.keys(chars).filter(id=>!tk.some(t=>t.ref===id)).length;
   const hidden=tk.filter(t=>t.kind==="npc"&&t.hidden).length,npcFree=tk.filter(t=>t.kind==="npc"&&!t.hidden&&!t.cid).length,freeSpawn=(m.spawn||[]).filter(i=>!tk.some(t=>t.y*m.w+t.x===i)).length;
   const entry=sel&&sel.cid?(combat.order||[]).find(x=>x.id===sel.cid):null;
   return `${sel?`<div class="foecard"><div class="row" style="justify-content:space-between"><b style="font-family:var(--f-display);font-size:17px">${esc(sel.name)}</b>${sel.hidden?'<span class="chip dm">versteckt</span>':""}</div>
       ${sel.foe?`<div class="k"><span>HP <b>${entry?entry.hp:sel.foe.hp}</b></span><span>SP <b>${sel.foe.sp}</b></span><span>Angriff <b>+${sel.foe.atk}</b></span><span>${esc(sel.foe.w||"")} <b>${esc(sel.foe.dmg||"")}</b></span></div>`:""}
-      ${stairsHtml(m,sel)}<div class="row">${sel.kind==="npc"?`<button class="btn small ${sel.hidden?"primary":""}" data-act="mtokhide" data-id="${sel.id}">${sel.hidden?"Aufdecken":"Verstecken"}</button>${!sel.cid?`<button class="btn small" data-act="mtokinit" data-id="${sel.id}">In die Initiative</button>`:'<span class="chip">in der Initiative</span>'}${entry?`<button class="btn small" data-act="mtokhp" data-id="${sel.id}" data-d="-5">−5 HP</button><button class="btn small" data-act="mtokhp" data-id="${sel.id}" data-d="-1">−1</button>`:""}`:""}<button class="btn small mag" data-act="mtokdel" data-id="${sel.id}">Von der Karte nehmen</button><button class="btn small" data-act="msel" data-id="">Schliessen</button></div></div>`:""}
+      ${hpCtl(sel)}${statChips(sel,true)}${sel.grp?`<div class="muted" style="font-size:13px">Gruppe: ${esc(sel.grp)}</div>`:""}
+      ${stairsHtml(m,sel)}<div class="row">${sel.kind==="npc"?`<button class="btn small" data-act="tokcopy" data-id="${sel.id}">Kopieren</button>`:""}${sel.kind==="npc"?`<button class="btn small ${sel.hidden?"primary":""}" data-act="mtokhide" data-id="${sel.id}">${sel.hidden?"Aufdecken":"Verstecken"}</button>${!sel.cid?`<button class="btn small" data-act="mtokinit" data-id="${sel.id}">In die Initiative</button>`:'<span class="chip">in der Initiative</span>'}${entry?`<button class="btn small" data-act="mtokhp" data-id="${sel.id}" data-d="-5">−5 HP</button><button class="btn small" data-act="mtokhp" data-id="${sel.id}" data-d="-1">−1</button>`:""}`:""}<button class="btn small mag" data-act="mtokdel" data-id="${sel.id}">Von der Karte nehmen</button><button class="btn small" data-act="msel" data-id="">Schliessen</button></div></div>`:""}
+    ${groupsHtml(m)}${npcFormHtml()}
     <div class="row" style="justify-content:space-between"><h3>Figuren</h3><span class="mono muted" style="font-size:12px">${tk.length} auf der Karte · ${hidden} versteckt · ${freeSpawn} freie Spawn-Punkte</span></div>
     <div class="row"><button class="btn small ${pcsMissing?"primary":""}" data-act="mcrew" ${pcsMissing?"":"disabled"}>Crew setzen${pcsMissing?` (${pcsMissing})`:""}</button><button class="btn small ${mapView.dropPick?"primary":""}" data-act="mdroppick" aria-pressed="${!!mapView.dropPick}" title="Danach ein Feld antippen: die ganze Crew steht dort">${mapView.dropPick?"Feld antippen …":"Crew-Absetzpunkt"}</button>
       ${enc.length?`<button class="btn small primary" data-act="mencspawn">Begegnung verstecken (${enc.length})</button>`:""}
@@ -2434,7 +2540,7 @@ function renderMapView(v,top){
   if(!$("#mapPanel")||!v.contains($("#mapPanel")))v.innerHTML=mapShell();
   $("#mapTop").innerHTML=top;isoBtns();
   if(!busyInput()){$("#mapTools").innerHTML=mapToolsHtml();$("#mapSide").innerHTML=mapSideHtml()}
-  const m=curMap();$("#mapBox").hidden=!m;
+  const m=curMap();$("#mapBox").hidden=!m;if(m&&flatMap(maps[m.id])&&mapView.iso){mapView.iso=false;isoBtns()}{const ib=$("#isoBtn");if(ib)ib.hidden=!!(m&&flatMap(maps[m.id]))}
   if(m&&mapView.fit&&mapView.fitFor!==m.id){mapView.fitFor=m.id;requestAnimationFrame(()=>{fitMap(m);drawMap()})}
   drawMap();
 }
@@ -2474,7 +2580,7 @@ function drawIsoNow(cv,m){
     const pc=t.ref&&(chars[t.ref]||allChars[t.ref]),pim=pc&&pc.portrait?portraitImg(pc.portrait):null;
     if(pim){x.save();x.beginPath();x.arc(sx,sy-lift,r-1.5,0,7);x.clip();x.drawImage(pim,sx-r,sy-lift-r,r*2,r*2);x.restore()}
     else{x.fillStyle="#fff";x.font=`700 ${Math.round(r*.8)}px "IBM Plex Sans",Arial,sans-serif`;x.textAlign="center";x.textBaseline="middle";x.fillText((t.name||"?").slice(0,2).toUpperCase(),sx,sy-lift+1)}
-    x.lineWidth=2;x.strokeStyle=isCur?"#f1c40f":"#fff";x.beginPath();x.arc(sx,sy-lift,r,0,7);x.stroke();x.globalAlpha=1;
+    x.lineWidth=2;x.strokeStyle=isCur?"#f1c40f":"#fff";x.beginPath();x.arc(sx,sy-lift,r,0,7);x.stroke();x.globalAlpha=1;drawTokExtras(x,sx,sy-lift,r,t,hw>6&&tokCanSeeHp(t));
     if(hw>9){x.font='600 11px "IBM Plex Sans",Arial,sans-serif';x.textAlign="center";x.textBaseline="bottom";const nm=t.name||"",tw=x.measureText(nm).width;x.fillStyle="rgba(15,15,22,.8)";x.fillRect(sx-tw/2-4,sy-lift-r-16,tw+8,14);x.fillStyle="#fff";x.fillText(nm,sx,sy-lift-r-3)}};
   for(let d=0;d<=m.w+m.h;d++){
     for(let cx=Math.max(0,d-m.h+1);cx<=Math.min(m.w-1,d);cx++){const cy=d-cx;if(!inView(cx,cy))continue;const i=cy*m.w+cx,t=m.tiles[i],T=TILES[t];if(!dm&&!known(i))continue;
@@ -2527,6 +2633,7 @@ function drawMapNow(){
     x.strokeStyle="rgba(255,255,255,.75)";x.lineWidth=Math.max(1,cs*.05);x.setLineDash([cs*.25,cs*.18]);x.beginPath();
     ov.forEach(i=>{const cx=i%m.w,cy=Math.floor(i/m.w),px=ox+cx*cs,py=oy+cy*cs;if(!ov.has(i-m.w)||cy===0){x.moveTo(px,py);x.lineTo(px+cs,py)}if(!ov.has(i+m.w)){x.moveTo(px,py+cs);x.lineTo(px+cs,py+cs)}if(!ov.has(i-1)||cx===0){x.moveTo(px,py);x.lineTo(px,py+cs)}if(!ov.has(i+1)||cx===m.w-1){x.moveTo(px+cs,py);x.lineTo(px+cs,py+cs)}});
     x.stroke();x.setLineDash([]);x.lineWidth=1}}
+  drawGrid(x,m,ox,oy,cs,W,H);
   const x0=Math.max(0,Math.floor(-ox/cs)),y0=Math.max(0,Math.floor(-oy/cs)),x1=Math.min(m.w-1,Math.ceil((W-ox)/cs)),y1=Math.min(m.h-1,Math.ceil((H-oy)/cs));
   if(F.vis){for(let cy=y0;cy<=y1;cy++)for(let cx=x0;cx<=x1;cx++){const i=cy*m.w+cx;if(F.vis.has(i))continue;const known=F.ex&&F.ex.has(i);if(dm&&known)continue;
     x.fillStyle=dm?"rgba(8,8,16,.5)":F.soft?(known?"rgba(20,20,26,.3)":"rgba(20,20,26,.5)"):known?"rgba(25,25,32,.68)":"#1e1e22";x.fillRect(ox+cx*cs,oy+cy*cs,cs+.6,cs+.6)}}
@@ -2555,7 +2662,7 @@ function drawMapNow(){
     if(t.ref&&t.ref===myCid()){x.beginPath();x.arc(px,py,r+cs*.08,0,7);x.strokeStyle="#1f5fa8";x.lineWidth=1;x.stroke()}
     if(mapView.sel===t.id){x.beginPath();x.arc(px,py,r+cs*.2,0,7);x.strokeStyle="#222";x.setLineDash([2,3]);x.stroke();x.setLineDash([])}
     if(cs>=12&&!pim){x.fillStyle="#ffffff";x.font=`700 ${Math.round(cs*.34)}px "Chakra Petch",Arial,sans-serif`;x.textAlign="center";x.textBaseline="middle";const lbl=t.name.replace(/[^A-Za-zÀ-ÿ0-9 ]/g,"").split(" ").filter(Boolean);x.fillText(((lbl[0]||"?")[0]+(lbl.length>1?(lbl[lbl.length-1][0]):(lbl[0]||"")[1]||"")).toUpperCase(),px,py+1)}
-    if(cs>=22&&dm&&t.cid){const e=(combat.order||[]).find(o=>o.id===t.cid);if(e&&e.hpMax){x.fillStyle="#000";x.fillRect(px-r,py+r+2,r*2,3);x.fillStyle=e.hp/e.hpMax>.5?"#5dffa0":e.hp>0?"#f5e400":"#ff4f5e";x.fillRect(px-r,py+r+2,r*2*clamp(e.hp/e.hpMax,0,1),3)}}
+    drawTokExtras(x,px,py,r,t,cs>=14&&tokCanSeeHp(t));
     x.globalAlpha=1;
   });
 }
@@ -2754,9 +2861,9 @@ function mapPointerEnd(e){
   if(a.kind==="ptr"){mact=null;clearInterval(ptrBeat);ptrEnd("me");ptrSend(null);return}
   mact=null;const m=curMap();if(!m)return;let [cx,cy,elx,ely]=cellAt(e);
   if(a.kind==="tok"&&(a.gx||a.gy)){const [fx,fy]=s2c(elx+a.gx,ely+a.gy);cx=Math.floor(fx);cy=Math.floor(fy)}
-  if(a.kind==="tok"){if(a.moved)liveSend(null);if(a.moved&&(cx!==a.cx||cy!==a.cy))moveTok({...tokens[a.id],id:a.id},cx,cy,m);else{if(!tapDoor(m,cx,cy)&&isDM()){mapView.sel=a.id;$("#mapSide").innerHTML=mapSideHtml()}drawMap()}}
+  if(a.kind==="tok"){if(a.moved)liveSend(null);if(a.moved&&(cx!==a.cx||cy!==a.cy))moveTok({...tokens[a.id],id:a.id},cx,cy,m);else{if(!tapDoor(m,cx,cy)){mapView.sel=a.id;$("#mapSide").innerHTML=mapSideHtml()}drawMap()}}
   else if(a.kind==="pan"&&!a.moved&&isDM()&&!mapView.preview&&maps[m.id]&&(maps[m.id].kind==="city"||maps[m.id].kind==="district")&&lastTap.id===m.id&&lastTap.cx===a.cx&&lastTap.cy===a.cy&&Date.now()-lastTap.t<400){lastTap={};openChild(m,a.cx,a.cy)}
-  else if(a.kind==="pan"&&!a.moved){lastTap={id:m.id,cx:a.cx,cy:a.cy,t:Date.now()};if(!tapDoor(m,a.cx,a.cy)&&isDM()){mapView.sel=a.tok||null;$("#mapSide").innerHTML=mapSideHtml()}drawMap()}
+  else if(a.kind==="pan"&&!a.moved){lastTap={id:m.id,cx:a.cx,cy:a.cy,t:Date.now()};if(!tapDoor(m,a.cx,a.cy)){mapView.sel=a.tok||null;$("#mapSide").innerHTML=mapSideHtml()}drawMap()}
   else if(a.kind==="rect"){applyRoom(editMap(),a.a,a.b);drawMap()}
   else if(a.kind==="fogrect"){fogArea(m,a.a,a.b,true)}
   else if(a.kind==="road"){applyRoad(editMap(),a.a,a.b);drawMap()}
@@ -2783,6 +2890,7 @@ function askRemove(b){
   $("#cfYes").onclick=()=>{close();const t=document.createElement("button");t.hidden=true;Object.assign(t.dataset,b.dataset);t.dataset.ok="1";document.body.appendChild(t);t.click();t.remove()};
   setTimeout(()=>{const y=$("#cfNo");if(y)y.focus()},30);
 }
+document.addEventListener("toggle",e=>{if(e.target&&e.target.id==="mapSetDet")mapView.setOpen=e.target.open},true);
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){const el=$("#cfModal");if(el&&!el.hidden){el.hidden=true;el.innerHTML=""}}});
 
 /* --- Handel zwischen Spielern --- */
@@ -2885,12 +2993,24 @@ function viewClaimDM(){
 function roomPlayers(){return [...new Set(Object.values(allChars).map(c=>c.owner).filter(Boolean).concat(Object.keys(names)))].filter(x=>x&&x!==me)}
 function dmPassHtml(){const ps=roomPlayers();if(!ps.length)return "";
   return `<details><summary class="label" style="cursor:pointer">DM-Rolle übergeben</summary><div class="row" style="align-items:end;margin-top:8px"><div class="field" style="flex:1 1 180px"><label class="label" for="dm-pass">An</label><select id="dm-pass">${ps.map(p=>`<option value="${esc(p)}">${esc(playerName(p))}</option>`).join("")}</select></div><button class="btn small mag" data-act="dmpass">Übergeben</button></div><p class="muted" style="margin:6px 0 0;font-size:13px">Danach hast du keinen DM-Zugriff mehr. Zurück geht es nur, wenn der neue DM dir die Rolle wieder gibt.</p></details>`}
-function viewDM(){
+const DMSUBS=[["crew","Spieler"],["fight","Kampf"],["reward","IP & Loot"],["msg","Nachrichten"],["gig","Gigs"],["all","Alles"]];
+let dmSub=(()=>{try{return localStorage.getItem("nct-dmsub")||"crew"}catch(e){return "crew"}})();
+const tabBase=k=>String(k).split(":")[0];
+/* Eigenes Browserfenster: #w-<tab> oder #w-dm-<bereich> */
+(()=>{const h=(location.hash||"").match(/^#w-([a-z]+)(?:-([a-z]+))?$/);if(!h)return;if(TABLIST.some(t=>t[0]===h[1])){tab=h[1];panes=[];if(h[1]==="dm"&&h[2]&&DMSUBS.some(x=>x[0]===h[2]))dmSub=h[2]}})();
+
+
+function dmSubBar(cur,pane){const ext=location.protocol.startsWith("http")&&!/claude|anthropic/.test(location.host);
+  return `<div class="row" style="justify-content:space-between;gap:8px"><div class="seg" role="tablist" aria-label="DM-Bereiche" style="flex-wrap:wrap">${DMSUBS.map(([k,l])=>`<button role="tab" data-act="dmsub" data-k="${k}" ${pane!=null?`data-pane="${pane}"`:""} aria-pressed="${cur===k}">${l}${k==="msg"&&dmReplyCount()?` <span class="nbadge">${dmReplyCount()}</span>`:""}</button>`).join("")}</div>
+    ${ext?`<a class="btn small" href="${location.pathname}${location.search}#w-dm-${cur}" target="_blank" rel="noopener">In neuem Fenster öffnen</a>`:""}</div>`}
+function viewDM(sub,pane){
+  sub=sub||dmSub;const show=k=>sub==="all"||sub===k;
   const list=Object.entries(chars);
   const opts=list.map(([id,c])=>`<option value="${id}">${esc(c.handle||c.name)}</option>`).join("");
   return `<section class="panel hot stack"><div class="row" style="justify-content:space-between"><h2>DM-Konsole <span class="tag">VOLLZUGRIFF</span></h2><div class="row"><button class="btn small" data-tab="rules">DM-Regeln</button></div></div>
-    ${dmPassHtml()}
-    ${list.length?`<form class="row" data-form="dmgive" style="align-items:end">
+    ${dmSubBar(sub,pane)}
+    ${show("crew")?dmPassHtml():""}
+    ${!show("crew")?"":list.length?`<form class="row" data-form="dmgive" style="align-items:end">
       <div class="field" style="flex:1 1 140px"><label class="label" for="g-to">An</label><select id="g-to">${opts}</select></div>
       <div class="field" style="flex:2 1 180px"><label class="label" for="g-n">Gegenstand</label><input id="g-n" required placeholder="Arasaka-Datenchip"></div>
       <div class="field" style="flex:0 0 70px"><label class="label" for="g-q">Anz.</label><input id="g-q" type="number" min="1" value="1"></div>
@@ -2901,13 +3021,11 @@ function viewDM(){
       <div class="field" style="flex:1 1 120px"><label class="label" for="e-a">Betrag (−&nbsp;zum Abziehen)</label><input id="e-a" type="number" value="100"></div>
       <button class="btn">Buchen</button></form>`:`<div class="empty">Sobald Spieler ihre Akten anlegen, erscheinen sie hier.</div>`}
   </section>
-  ${gigPanel()}
-  ${whisperPanel()}
-  ${ipPanel()}
-  ${lootPanel()}
-  ${initPanel()}
-  ${foePanel()}
-  ${list.map(([id,c])=>`<section class="panel stack">
+  ${show("gig")?gigPanel():""}
+  ${show("msg")?whisperPanel():""}
+  ${show("reward")?ipPanel()+lootPanel():""}
+  ${show("fight")?initPanel()+foePanel():""}
+  ${(show("crew")?list:[]).map(([id,c])=>`<section class="panel stack">
     <div class="row" style="justify-content:space-between"><div><span class="label">${esc(c.role)} · ${esc(ownerOf(id)===me?"du":playerName(ownerOf(id)))}</span><h2 style="font-size:22px">${esc(c.handle||c.name)}</h2><div class="muted">${esc(c.name)}</div></div><div class="row"><span class="chip">${c.ip||0} IP</span><span class="chip">Rang ${c.roleRank||4}</span><span class="chip">Reputation ${c.rep||0} <button class="pinbtn" style="color:var(--fg)" data-act="rep" data-id="${id}" data-d="-1" aria-label="Reputation senken">−</button><button class="pinbtn" style="color:var(--fg)" data-act="rep" data-id="${id}" data-d="1" aria-label="Reputation erhöhen">+</button></span><span class="chip">€$ <b class="mono" style="color:var(--yel)">${c.eddies}</b></span></div></div>
     ${statsGrid(c.stats,id)}
     ${vitals(c,id,true)}
@@ -2980,10 +3098,11 @@ document.addEventListener("click",async e=>{
   else if(a==="portpick"){const f=$("#portraitFile");f.value="";f.click()}
   else if(a==="fixopen"){charFix=!charFix;render()}
   else if(a==="portdel"){editChar(myCid(),c=>{delete c.portrait});toast("Bild entfernt.")}
-  else if(a==="wins"){const n=+b.dataset.d;if(n<=1){if(panes.length>1)tab=panes[activePane];panes=[]}else{let cur=panes.length>1?panes.slice():[tab];const pref=[tab,"map","char","dice","dm","party","cat","camp","rules"];
-      while(cur.length<n){const nx=pref.find(k=>!cur.includes(k));cur.push(nx)}panes=cur.slice(0,n);if(activePane>=n)activePane=0}
+  else if(a==="dmsub"){const k=b.dataset.k;if(b.dataset.pane!=null&&panes.length>1){panes[+b.dataset.pane]="dm:"+k;savePanes()}else{dmSub=k;try{localStorage.setItem("nct-dmsub",k)}catch(e){}}render()}
+  else if(a==="wins"){const n=+b.dataset.d;if(n<=1){if(panes.length>1)tab=panes[activePane];panes=[]}else{let cur=panes.length>1?panes.slice():[tab];const pref=n>3?[tab,"map","dm:fight","dm:crew","dm:msg","dm:reward","dice","party","dm:gig","char"]:[tab,"map","char","dice","dm","party","cat","camp","rules"];
+      while(cur.length<n){const nx=pref.find(k=>!cur.includes(k)&&!(k==="dm"&&cur.some(c=>tabBase(c)==="dm")));if(!nx)break;cur.push(nx)}panes=cur.slice(0,n);if(activePane>=n)activePane=0}
     savePanes();$("#view").innerHTML="";$("#view").classList.remove("split");render();drawMap()}
-  else if(a==="psel"){const i=+b.dataset.pane,k=b.dataset.k;if(panes.includes(k)&&panes[i]!==k)return;panes[i]=k;activePane=i;savePanes();render();drawMap()}
+  else if(a==="psel"){const i=+b.dataset.pane;let k=b.dataset.k;if(k==="dm"){if(tabBase(panes[i])==="dm")return;const used=panes.filter(p=>tabBase(p)==="dm").map(p=>p.split(":")[1]||dmSub);const fr=DMSUBS.find(([s])=>s!=="all"&&!used.includes(s));k="dm:"+(fr?fr[0]:"all")}else if(panes.includes(k)&&panes[i]!==k)return;panes[i]=k;activePane=i;savePanes();render();drawMap()}
   else if(a==="pclose"){const i=+b.dataset.i;panes.splice(i,1);if(panes.length<2){tab=panes[0]||tab;panes=[]}activePane=0;savePanes();$("#view").innerHTML="";$("#view").classList.remove("split");render();drawMap()}
   else if(a==="whto"){wh.to=id;render()}
   else if(a==="whkind"){wh.kind=b.dataset.k;render()}
@@ -3154,6 +3273,27 @@ document.addEventListener("click",async e=>{
   else if(a==="mtokinit"){const t=tokens[id];if(t&&t.foe&&!t.cid){await tokensToInit([{...t,id}]);toast(t.name+" ist in der Initiative.")}render()}
   else if(a==="mtokhp"){const t=tokens[id];if(!t||!t.cid)return;write("game/combat",g=>{const x=g&&(g.order||[]).find(x=>x.id===t.cid);if(!x)return null;x.hp=Math.max(0,(x.hp||0)+d);return g})}
   else if(a==="mtokdel"){try{await db.doc("tokens/"+id).delete()}catch(e){}delete tokens[id];mapView.sel=null;render()}
+  else if(a==="mgsrc"){mapView.gsrc=b.dataset.k;render()}
+  else if(a==="mimgcreate"||a==="mblankcreate"){if(!isDM())return;const name=($("#nm-name")||{}).value?.trim()||"",folder=($("#nm-folder")||{}).value?.trim()||"";let doc;
+    if(a==="mimgcreate"){const u=mapView.upl;if(!u)return;const cells=clamp(Math.round(+($("#nm-cells")||{}).value||20),4,200),cell=+(u.w/cells).toFixed(2);b.disabled=true;b.textContent="Lade hoch …";
+      let ref;try{ref=await saveMapImage(u.data)}catch(e){toast(errMsg(e));render();return}
+      const img={id:ref.id,n:ref.n,pw:u.w,ph:u.h,cell,ox:0,oy:0},[w,h]=calcImgGrid(img);mapImgs[ref.id]=(()=>{const im=new Image();im.src=u.data;const e={ok:false,im};im.onload=()=>{e.ok=true;drawMap()};return e})();
+      doc=flatDoc({name:name||"Eigene Karte",folder,kind:"image",w,h,img})}
+    else{const w=clamp(Math.round(+$("#nm-w").value||30),4,150),h=clamp(Math.round(+$("#nm-h").value||20),4,150);doc=flatDoc({name:name||"Rasterkarte",folder,kind:"grid",w,h,bg:$("#nm-bg").value||"#1b1826"})}
+    const id=uid();maps[id]=doc;try{await db.doc("maps/"+id).set(doc)}catch(e){toast(errMsg(e));return}
+    mapView.id=id;mapView.z=0;mapView.fitFor=null;mapLocal=null;mapView.gen=false;mapView.upl=null;mapView.nmName="";mapView.setOpen=a==="mimgcreate";render();toast("Karte angelegt. Sie ist in Vorbereitung, bis du sie den Spielern zeigst.")}
+  else if(a==="mcal"){const m=curMap();if(!m)return;const k=b.dataset.k,step=k==="cell"?.5:1;await mapSet(m.id,"img."+k,Math.max(k==="cell"?4:0,(+((maps[m.id].img||{})[k])||0)+d*step),true)}
+  else if(a==="tokhp"){const t=tokens[id];if(!t)return;const mine=t.kind==="pc"&&t.ref===myCid();if(!isDM()&&!mine)return;
+    if(t.kind==="pc")editChar(t.ref,c=>{c.hp=clamp((c.hp||0)+d,0,c.hpMax||hpMax(c.stats))});
+    else if(t.cid&&(combat.order||[]).some(o=>o.id===t.cid))write("game/combat",g=>{const x=g&&(g.order||[]).find(o=>o.id===t.cid);if(!x)return null;x.hp=clamp((x.hp||0)+d,0,x.hpMax||999);return g});
+    else{const hp=tokHP(t);if(!hp)return;write("tokens/"+id,x=>x?{...x,hpMax:hp[1],hp:clamp(hp[0]+d,0,hp[1])}:null)}}
+  else if(a==="tokst"){const t=tokens[id];if(!t)return;if(!isDM()&&!(t.kind==="pc"&&t.ref===myCid()))return;const k=b.dataset.k;write("tokens/"+id,x=>{if(!x)return null;const st=new Set(x.st||[]);st.has(k)?st.delete(k):st.add(k);return {...x,st:[...st]}})}
+  else if(a==="tokcopy"){const t=tokens[id],m=curMap();if(!t||!m||!isDM())return;const [i]=freeCellsNear(m,t.x,t.y,1);if(i==null)return;const base=(t.name||"NPC").replace(/\s+\d+$/,""),n=Object.values(tokens).filter(x=>x.map===t.map&&(x.name||"").replace(/\s+\d+$/,"")===base).length+1;
+    const tid=uid(),tok={...t,x:i%m.w,y:Math.floor(i/m.w),name:`${base} ${n}`,cid:"",st:[],hp:t.hpMax||t.hp,at:Date.now()};delete tok.id;tokens[tid]=tok;await db.doc("tokens/"+tid).set(tok);mapView.sel=tid;render()}
+  else if(a==="grphide"||a==="grpdel"||a==="grpinit"){const m=curMap();if(!m||!isDM())return;const k=b.dataset.k,L=mapTokens(m.id).filter(t=>t.grp===k);
+    if(a==="grpdel"){if(delArm!=="grp"+k){delArm="grp"+k;b.textContent="Sicher?";setTimeout(()=>{if(delArm==="grp"+k){delArm=null;render()}},4000);return}delArm=null;for(const t of L){try{await db.doc("tokens/"+t.id).delete()}catch(e){}delete tokens[t.id]}render();return}
+    if(a==="grpinit"){await tokensToInit(L.filter(t=>!t.cid));toast(`${k}: ${L.length} in der Initiative.`);render();return}
+    const hide=!L.some(t=>t.hidden);for(const t of L){tokens[t.id]={...tokens[t.id],hidden:hide};await db.doc("tokens/"+t.id).set(tokens[t.id])}render()}
   else if(a==="mdroppick"){mapView.dropPick=!mapView.dropPick;if(mapView.dropPick)toast("Tippe auf das Feld, an dem die Crew abgesetzt wird.");render()}
   else if(a==="mdropit"){const m=curMap(),c=myChar(),sel=$("#mdrop-it");if(!m||!c||!sel)return;const mine=mapTokens(m.id).find(t=>t.ref===myCid());if(!mine)return;
     const it=(c.inventory||[]).find(x=>x.id===sel.value);if(!it)return;
@@ -3283,6 +3423,7 @@ document.addEventListener("click",async e=>{
 });
 document.addEventListener("input",e=>{
   const el=e.target;
+  if(el.dataset&&el.dataset.mset&&(el.type==="range"||el.type==="color")&&isDM()){const m=curMap();if(m)mapSet(m.id,el.dataset.mset,el.type==="range"?+el.value:el.value,false)}
   if(el.dataset.draft&&draft){draft[el.dataset.draft]=el.value}
   if(el.id==="ck-skill")pick.skill=+el.value||0;
   if(el.id==="ck-label")pick.label=el.value;
@@ -3315,6 +3456,8 @@ document.addEventListener("change",e=>{
   if(el.id==="cat-to"){catTo=el.value}
   if(el.id==="loot-split"){lootCfg.split=el.checked}
   if(el.id==="pmap-sel"){mapView.pid=el.value===mapState.active?null:el.value;mapView.fitFor=null;el.blur();render()}
+  if(el.id==="nm-file"&&el.files&&el.files[0]){mapView.nmName=($("#nm-name")||{}).value||"";mapView.nmFolder=($("#nm-folder")||{}).value||"";shrinkImage(el.files[0]).then(u=>{mapView.upl=u;if(!mapView.nmName)mapView.nmName=el.files[0].name.replace(/\.[a-z0-9]+$/i,"");if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();render()}).catch(()=>toast("Das Bild konnte nicht gelesen werden. JPG, PNG oder WebP verwenden."))}
+  if(el.dataset&&el.dataset.mset&&isDM()){const m=curMap();if(m){const k=el.dataset.mset,v=el.type==="checkbox"?el.checked:el.type==="range"||el.type==="number"?+el.value:el.value;mapSet(m.id,k,v,true);if(el.type!=="range"&&el.type!=="color")el.blur()}}
   if(el.id==="map-sel"){saveMapNow();mapView.id=el.value;mapLocal=null;mapView.fitFor=null;mapView.sel=null;el.blur();render()}
   if(el.id==="map-furn"){mapView.furnish=el.checked;el.blur();render()}
   if(el.id==="map-fog"){const m=editMap();if(m){m.fog=el.checked;saveMapNow()}el.blur();render()}
@@ -3325,6 +3468,10 @@ document.addEventListener("change",e=>{
 });
 document.addEventListener("submit",e=>{
   e.preventDefault();const f=e.target.dataset.form;
+  if(f==="npcnew"){const m=curMap();if(!m||!isDM())return;const n=$("#nn-n").value.trim()||"NPC",cnt=clamp(Math.round(+$("#nn-c").value||1),1,20),hp=Math.max(1,+$("#nn-hp").value||30),sp=Math.max(0,+$("#nn-sp").value||0),dmg=$("#nn-dmg").value.trim()||"3W6",hid=$("#nn-hid").checked;
+    const [cx,cy]=viewCenterCell(m),cells=freeCellsNear(m,cx,cy,cnt);if(!cells.length){toast("Kein freies Feld gefunden.");return}
+    (async()=>{for(let k=0;k<cnt;k++){const i=cells[k%cells.length],tid=uid(),tok={map:m.id,z:m.z||0,x:i%m.w,y:Math.floor(i/m.w),kind:"npc",ref:null,name:cnt>1?`${n} ${k+1}`:n,grp:cnt>1?n:"",hidden:hid,cid:"",hp,hpMax:hp,st:[],foe:{base:n,tier:"NPC",ref:6,hp,sp,atk:12,dmg,w:"",dodge:0},at:Date.now()};tokens[tid]=tok;try{await db.doc("tokens/"+tid).set(tok)}catch(er){toast(errMsg(er));break}}
+      toast(cnt>1?`${n} ×${cnt} auf der Karte.`:`${n} auf der Karte.`);render()})();return}
   if(f==="charfix"){const c=myChar();if(!c)return;const st={},sk={},ch=[];
     STATS.forEach(([k])=>{st[k]=clamp(Math.round(+$("#fx-"+k).value||c.stats[k]),1,10);if(st[k]!==c.stats[k])ch.push(`${k} ${c.stats[k]}→${st[k]}`)});
     SKILLS.forEach(([n],i)=>{const v=clamp(Math.round(+$("#fx-sk-"+i).value||0),0,10);sk[n]=v;const o=(c.skills||{})[n]||0;if(v!==o)ch.push(`${n} ${o}→${v}`)});
