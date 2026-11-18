@@ -2127,8 +2127,9 @@ function genDistrict(cd,wx,wy){
       if(b2<0||b2===a||blist[b2].f<5)continue;const key=Math.min(a,b2)+"-"+Math.max(a,b2);if(pairs.has(key)||R()>.35)continue;pairs.add(key);
       walks.push([x+dx,y+dy,dx,dy,k-1,ri(R,3,Math.max(3,Math.min(blist[a].f,blist[b2].f)-1))])}}
   if(walks.length>8)walks.length=8;
+  const walksS=walks.map(a=>a.join(","));
   const nm=cnm(wx+Math.floor(W/2),wy+Math.floor(H/2))||"Viertel";
-  return{w,h,type:"district",kind:"district",seed:chash(S,wx,wy),scale:10,fog:false,tiles:g.a.join(""),deco:g.dd.join(""),spawn:pickCells(spawn,24,R),start,distName:nm,dtype:cty(wx+Math.floor(W/2),wy+Math.floor(H/2))||"res",links:{},ht:ht.join(""),blds,walks};
+  return{w,h,type:"district",kind:"district",seed:chash(S,wx,wy),scale:10,fog:false,tiles:g.a.join(""),deco:g.dd.join(""),spawn:pickCells(spawn,24,R),start,distName:nm,dtype:cty(wx+Math.floor(W/2),wy+Math.floor(H/2))||"res",links:{},ht:ht.join(""),blds,walks:walksS};
 }
 const ROOFT="RBUy";
 function bldComp(m,x,y){const W=m.w,s=new Set(),st=[[x,y]];if(!ROOFT.includes(m.tiles[y*W+x]))return null;
@@ -2156,6 +2157,26 @@ function genTactical(dm,wx,wy,ww,wh,seed){
   const spawn=[],start=[];for(let i=0;i<w*h;i++){const c=g.a[i];if(g.dd[i]!=="."||!TILES[c]||!TILES[c].walk)continue;if("ofh".includes(c)&&R()<.05)spawn.push(i);if((c==="s"||c==="r")&&(i%w<3||Math.floor(i/w)<3)&&start.length<8)start.push(i)}
   return{w,h,type:"tactical",kind:"tactical",seed,scale:2,fog:true,tiles:g.a.join(""),deco:g.dd.join(""),spawn:pickCells(spawn,20,R),start,links:{}};
 }
+async function crewDrop(m,cx,cy){
+  if(cx<0||cy<0||cx>=m.w||cy>=m.h)return;if(!walkable(m,cx,cy)){toast("Dort ist kein begehbarer Boden. Wähle ein anderes Feld.");mapView.dropPick=true;render();return}
+  const z=m.z||0,ids=Object.keys(chars),occ=new Set(lvTokens(m).filter(t=>t.kind!=="pc").map(t=>t.y*m.w+t.x)),cells=[],start=cy*m.w+cx,seen=new Set([start]),q=[start];
+  while(q.length&&cells.length<Math.max(1,ids.length)){const i=q.shift(),x=i%m.w,y=(i-x)/m.w;if(!occ.has(i))cells.push(i);
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=m.w||Y>=m.h)continue;const j=Y*m.w+X;if(seen.has(j))continue;seen.add(j);if(walkable(m,X,Y))q.push(j)}}
+  let k=0;
+  for(const cid of ids){const i=cells[k++%cells.length],x=i%m.w,y=(i-x)/m.w,ex=mapTokens(m.id).find(t=>t.ref===cid),c=chars[cid];
+    const tid=ex?ex.id:uid(),tok={...(ex?tokens[ex.id]:{map:m.id,kind:"pc",ref:cid,name:c.handle||c.name,hidden:false}),x,y,z,at:Date.now()};tokens[tid]=tok;
+    try{await db.doc("tokens/"+tid).set(tok)}catch(e){toast(errMsg(e));break}}
+  if(!z){if(mapLocal&&mapLocal.id===m.id&&!mapLocal.z)mapLocal.start=cells.slice();await write("maps/"+m.id,d=>{if(!d)return null;d.start=cells.slice();return d})}
+  SFX.click();drawMap();render();toast(`Crew abgesetzt (${ids.length} ${ids.length===1?"Figur":"Figuren"}). Neue Figuren landen ab jetzt auch hier.`)}
+
+/* Gegenstände auf der Karte ablegen und aufheben */
+function nearItems(m,me2){return lvTokens(m).filter(t=>t.kind==="item"&&Math.abs(t.x-me2.x)<=1&&Math.abs(t.y-me2.y)<=1)}
+function playerMapPanel(m,mine){const c=myChar(),inv=(c&&c.inventory)||[],near=nearItems(m,mine);
+  return `${near.length?`<div class="foecard stack" style="gap:6px"><span class="label">Hier liegt</span>${near.map(t=>`<div class="row" style="justify-content:space-between"><span><b>${esc(t.name)}</b>${t.byName?` <span class="muted" style="font-size:12px">abgelegt von ${esc(t.byName)}</span>`:""}</span><button class="btn small primary" data-act="mpick" data-id="${t.id}">Aufheben</button></div>`).join("")}</div>`:""}
+  ${inv.length?`<details><summary class="label" style="cursor:pointer">Gegenstand hier ablegen</summary><div class="row" style="align-items:end;margin-top:6px"><div class="field" style="flex:1 1 180px"><label class="label" for="mdrop-it">Aus dem Rucksack</label><select id="mdrop-it">${inv.map(x=>`<option value="${x.id}">${esc(x.name)} (${x.qty}×)</option>`).join("")}</select></div><button class="btn small" data-act="mdropit">Ablegen</button></div><p class="muted" style="margin:6px 0 0;font-size:13px">Er liegt dann neben deiner Figur. Wer direkt daneben steht, kann ihn aufheben.</p></details>`:""}`}
+
+/* Skywalks als "x,y,dx,dy,len,fl"-Strings (Firestore kennt keine Arrays in Arrays) */
+function walkList(m){return (m.walks||[]).map(w=>Array.isArray(w)?w:String(w).split(",").map(Number)).filter(w=>w.length===6&&w.every(isFinite))}
 async function openChild(m,cx,cy){
   const doc=maps[m.id];if(!doc)return;const kind=doc.kind;if(kind!=="city"&&kind!=="district")return;
   let key,wx,wy,ww,wh,bname="",binfo=null;
@@ -2178,7 +2199,7 @@ async function openChild(m,cx,cy){
 }
 function drawCityOverlay(x,m,ox,oy,cs,dm){
   const doc=maps[m.id]||{};
-  if(!m.z)(m.walks||[]).forEach(([wx0,wy0,dx,dy,len,fl])=>{const px=ox+wx0*cs,py=oy+wy0*cs,W=dx?len*cs:cs,H=dy?len*cs:cs;x.save();x.fillStyle="rgba(120,220,255,.35)";x.fillRect(px,py,W,H);x.strokeStyle="#3ef0ff";x.setLineDash([4,3]);x.lineWidth=1.5;x.strokeRect(px+.5,py+.5,W-1,H-1);x.setLineDash([]);
+  if(!m.z)walkList(m).forEach(([wx0,wy0,dx,dy,len,fl])=>{const px=ox+wx0*cs,py=oy+wy0*cs,W=dx?len*cs:cs,H=dy?len*cs:cs;x.save();x.fillStyle="rgba(120,220,255,.35)";x.fillRect(px,py,W,H);x.strokeStyle="#3ef0ff";x.setLineDash([4,3]);x.lineWidth=1.5;x.strokeRect(px+.5,py+.5,W-1,H-1);x.setLineDash([]);
     if(cs>=9){x.font=`600 ${Math.round(clamp(cs*.45,8,11))}px "IBM Plex Sans",Arial,sans-serif`;x.fillStyle="#e8fbff";x.textAlign="center";x.textBaseline="middle";x.fillText("Skywalk "+fl+". OG",px+W/2,py+H/2)}x.restore()});
   if(m.city&&cs>=4){const c=m.city;x.save();x.textAlign="center";x.textBaseline="middle";const fs=Math.round(clamp(cs*.9,10,18));x.font=`700 ${fs}px "IBM Plex Sans",Arial,sans-serif`;
     c.names.forEach((n,k)=>{const px=ox+(c.cx[k]+.5)*cs,py=oy+(c.cy[k]+.5)*cs,tw=x.measureText(n).width;x.fillStyle="rgba(15,15,22,.72)";x.fillRect(px-tw/2-6,py-fs*.7,tw+12,fs*1.4);x.fillStyle="#fff";x.fillText(n,px,py+1)});x.restore()}
@@ -2209,7 +2230,7 @@ function visibleSet(m,srcs,R=12){const v=new Set();for(const [sx,sy] of srcs){fo
   const add=[];v.forEach(i=>{const x=i%m.w,y=Math.floor(i/m.w);if(blocks(m,x,y))return;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<m.w&&yy<m.h&&blocks(m,xx,yy))add.push(yy*m.w+xx)}});add.forEach(i=>v.add(i));return v}
 /* Daten */
 const seenMaps=()=>[...new Set([...(mapState.seen||[]),mapState.active].filter(id=>id&&maps[id]))];
-const curMapId=()=>isDM()&&mapView.id&&maps[mapView.id]?mapView.id:(!isDM()&&mapView.pid&&seenMaps().includes(mapView.pid)?mapView.pid:(mapState.active&&maps[mapState.active]?mapState.active:(isDM()?(Object.keys(maps)[0]||null):null)));
+const curMapId=()=>isDM()&&mapView.id&&maps[mapView.id]?mapView.id:((mapState.active&&maps[mapState.active]?mapState.active:(isDM()?(Object.keys(maps)[0]||null):null)));
 function setLive(id){return write("game/map",x=>({...(x||{}),active:id,seen:[...new Set([...((x&&x.seen)||[]),id])].filter(k=>maps[k]||k===id)}))}
 function curMap(){const id=curMapId();if(!id)return null;const z=viewZ(id);if(mapLocal&&mapLocal.id===id&&mapLocal.z===z)return mapLocal;return levelMap(id,z)}
 
@@ -2363,7 +2384,7 @@ function mapShell(){
 function toolSwatch(k){if(TILES[k])return `<i class="sw" style="background:${TILES[k].c}"></i>`;return ""}
 function mapToolsHtml(){
   const dm=isDM(),m=curMap(),list=Object.entries(maps).sort((a,b)=>(b[1].at||0)-(a[1].at||0));
-  const sm=dm?[]:seenMaps();
+  const sm=[];
   if(!dm)return (sm.length>1?`<div class="row" style="align-items:end"><div class="field" style="min-width:200px"><label class="label" for="pmap-sel">Karten, auf denen ihr schon wart</label><select id="pmap-sel">${sm.map(id=>`<option value="${id}" ${id===(m&&m.id)?"selected":""}>${esc(maps[id].name||"Karte")}${id===mapState.active?" · aktuell":""}</option>`).join("")}</select></div>${m&&m.id!==mapState.active?`<button class="btn small primary" data-act="pmapnow">Zurück zur aktuellen Karte</button>`:""}</div>`:"")+(m?`<div class="row" style="justify-content:space-between"><h2>${esc(m.name||"Karte")}${levelList(maps[m.id]).length>1?` <span class="tag">${esc(m.lvName||"")}</span>`:""}</h2><span class="muted" style="font-size:13px">Zieh deine Figur. Türen öffnest du durch Antippen, wenn du direkt daneben stehst. Auf einer Treppe wechselst du die Ebene.</span></div>`:"");
   return `<div class="row" style="justify-content:space-between;align-items:end"><div class="row" style="align-items:end">
       ${list.length?`<div class="field" style="min-width:180px"><label class="label" for="map-sel">Karte</label><select id="map-sel">${list.map(([id,x])=>`<option value="${id}" ${id===(m&&m.id)?"selected":""}>${esc(x.name||"Karte")}${id===mapState.active?" · live":""}</option>`).join("")}</select></div>${m?`<div class="field" style="min-width:120px"><label class="label" for="map-scale">Massstab</label><select id="map-scale" ${maps[m.id]&&maps[m.id].kind?"disabled title=\"Fest für diese Kartenart\"":""}>${SCALES.map(([v,l])=>`<option value="${v}" ${v===mapScale(m.id)?"selected":""}>${l} · 1 Feld = ${v} m</option>`).join("")}${SCALES.some(s=>s[0]===mapScale(m.id))?"":`<option value="${mapScale(m.id)}" selected>Eigener · 1 Feld = ${mapScale(m.id)} m</option>`}</select></div>`:""}${m&&maps[m.id]&&(maps[m.id].kind==="city"||maps[m.id].kind==="district")?`<button class="btn small ${mapView.zoomPick?"primary":""}" data-act="mzoompick" aria-pressed="${!!mapView.zoomPick}">${mapView.zoomPick?(maps[m.id].kind==="city"?"Tippe auf ein Viertel …":"Tippe auf ein Gebäude oder eine Strasse …"):maps[m.id].kind==="city"?"Viertel öffnen":"Gebäude öffnen"}</button><span class="muted" style="font-size:12px;align-self:center">oder Doppelklick auf die Karte</span>`:""}${m&&maps[m.id]&&maps[m.id].kind==="tactical"?`<button class="btn small" data-act="mintfill">Innenräume würfeln</button><button class="btn small" data-act="mintclear">Innen leeren</button>`:""}${m&&maps[m.id]&&maps[m.id].parent&&maps[maps[m.id].parent]?`<button class="btn small" data-act="mparent">↑ ${esc(maps[maps[m.id].parent].name||"Zurück")}</button>`:""}`:""}
@@ -2392,7 +2413,7 @@ function mapSideHtml0(){
   const m=curMap(),dm=isDM();
   if(!m)return dm?`<div class="empty">Noch keine Karte. Tippe auf „Neue Karte“ und wähle eine Umgebung.</div>`:`<div class="empty">Der DM hat noch keine Karte freigegeben.</div>`;
   const tk=lvTokens(m),sel=mapView.sel&&tokens[mapView.sel]?{...tokens[mapView.sel],id:mapView.sel}:null;
-  if(!dm){const mine=mapTokens(m.id).find(t=>t.ref===myCid());if(myChar()&&!mine)return `<div class="muted">Deine Figur steht noch nicht auf der Karte. Der DM setzt die Crew.</div>`;return mine?stairsHtml(m,{...mine}):""}
+  if(!dm){const mine=mapTokens(m.id).find(t=>t.ref===myCid());if(myChar()&&!mine)return `<div class="muted">Deine Figur steht noch nicht auf der Karte. Der DM setzt die Crew.</div>`;return mine?stairsHtml(m,{...mine})+((mine.z||0)===(m.z||0)?playerMapPanel(m,mine):""):""}
   const pcsMissing=Object.keys(chars).filter(id=>!tk.some(t=>t.ref===id)).length;
   const hidden=tk.filter(t=>t.kind==="npc"&&t.hidden).length,npcFree=tk.filter(t=>t.kind==="npc"&&!t.hidden&&!t.cid).length,freeSpawn=(m.spawn||[]).filter(i=>!tk.some(t=>t.y*m.w+t.x===i)).length;
   const entry=sel&&sel.cid?(combat.order||[]).find(x=>x.id===sel.cid):null;
@@ -2400,7 +2421,7 @@ function mapSideHtml0(){
       ${sel.foe?`<div class="k"><span>HP <b>${entry?entry.hp:sel.foe.hp}</b></span><span>SP <b>${sel.foe.sp}</b></span><span>Angriff <b>+${sel.foe.atk}</b></span><span>${esc(sel.foe.w||"")} <b>${esc(sel.foe.dmg||"")}</b></span></div>`:""}
       ${stairsHtml(m,sel)}<div class="row">${sel.kind==="npc"?`<button class="btn small ${sel.hidden?"primary":""}" data-act="mtokhide" data-id="${sel.id}">${sel.hidden?"Aufdecken":"Verstecken"}</button>${!sel.cid?`<button class="btn small" data-act="mtokinit" data-id="${sel.id}">In die Initiative</button>`:'<span class="chip">in der Initiative</span>'}${entry?`<button class="btn small" data-act="mtokhp" data-id="${sel.id}" data-d="-5">−5 HP</button><button class="btn small" data-act="mtokhp" data-id="${sel.id}" data-d="-1">−1</button>`:""}`:""}<button class="btn small mag" data-act="mtokdel" data-id="${sel.id}">Von der Karte nehmen</button><button class="btn small" data-act="msel" data-id="">Schliessen</button></div></div>`:""}
     <div class="row" style="justify-content:space-between"><h3>Figuren</h3><span class="mono muted" style="font-size:12px">${tk.length} auf der Karte · ${hidden} versteckt · ${freeSpawn} freie Spawn-Punkte</span></div>
-    <div class="row"><button class="btn small ${pcsMissing?"primary":""}" data-act="mcrew" ${pcsMissing?"":"disabled"}>Crew setzen${pcsMissing?` (${pcsMissing})`:""}</button>
+    <div class="row"><button class="btn small ${pcsMissing?"primary":""}" data-act="mcrew" ${pcsMissing?"":"disabled"}>Crew setzen${pcsMissing?` (${pcsMissing})`:""}</button><button class="btn small ${mapView.dropPick?"primary":""}" data-act="mdroppick" aria-pressed="${!!mapView.dropPick}" title="Danach ein Feld antippen: die ganze Crew steht dort">${mapView.dropPick?"Feld antippen …":"Crew-Absetzpunkt"}</button>
       ${enc.length?`<button class="btn small primary" data-act="mencspawn">Begegnung verstecken (${enc.length})</button>`:""}
       ${hidden?`<button class="btn small" data-act="mrevealall">Alle aufdecken</button>`:""}
       ${npcFree?`<button class="btn small primary" data-act="mnpcinit">Sichtbare Gegner in die Initiative (${npcFree})</button>`:""}</div>
@@ -2443,10 +2464,10 @@ function drawIsoNow(cv,m){
     if(hw>7){x.strokeStyle="rgba(0,0,0,.08)";x.lineWidth=1;x.stroke()}}
   // Wände, Gebäude, Deko und Figuren in Tiefenreihenfolge
   const cur=combat.active?(combat.order||[])[combat.turn]:null,toks={},walkAt={};
-  if(!m.z)(m.walks||[]).forEach(([wx0,wy0,dx,dy,len,fl])=>{const lift=fl*3.5/m.scale*2.2;for(let j=0;j<len;j++){const xx=wx0+dx*j,yy=wy0+dy*j;if(xx>=0&&yy>=0&&xx<m.w&&yy<m.h)walkAt[yy*m.w+xx]=lift}});
-  lvTokens(m).forEach(t=>{const i=t.y*m.w+t.x;if(!dm&&(t.hidden||(t.kind==="npc"&&F.vis&&!F.vis.has(i))))return;if(mact&&mact.kind==="tok"&&mact.id===t.id&&mact.moved)return;const pd=peersDrag[t.id];
+  if(!m.z)walkList(m).forEach(([wx0,wy0,dx,dy,len,fl])=>{const lift=fl*3.5/m.scale*2.2;for(let j=0;j<len;j++){const xx=wx0+dx*j,yy=wy0+dy*j;if(xx>=0&&yy>=0&&xx<m.w&&yy<m.h)walkAt[yy*m.w+xx]=lift}});
+  lvTokens(m).forEach(t=>{const i=t.y*m.w+t.x;if(!dm&&(t.hidden||(t.kind!=="pc"&&F.vis&&!F.vis.has(i))))return;if(mact&&mact.kind==="tok"&&mact.id===t.id&&mact.moved)return;const pd=peersDrag[t.id];
     let fx=t.x+.5,fy=t.y+.5;if(pd&&pd.map===m.id&&isFinite(pd.x)&&isFinite(pd.y)){fx=pd.x;fy=pd.y}const k=Math.floor(fx)+Math.floor(fy);(toks[k]=toks[k]||[]).push({t,fx,fy})});
-  const drawTok=(t,sx,sy)=>{const r=Math.max(6,hw*.55),isCur=cur&&((cur.ref&&cur.ref===t.ref)||(t.cid&&cur.id===t.cid)),lift=r*1.1;
+  const drawTok=(t,sx,sy)=>{if(t.kind==="item"){drawItemTok(x,sx,sy-hh*.3,Math.max(4,hw*.35),t,hw>9);return}const r=Math.max(6,hw*.55),isCur=cur&&((cur.ref&&cur.ref===t.ref)||(t.cid&&cur.id===t.cid)),lift=r*1.1;
     x.fillStyle="rgba(0,0,0,.4)";x.beginPath();x.ellipse(sx,sy,r*.9,r*.45,0,0,7);x.fill();
     if(isCur){x.strokeStyle="#f1c40f";x.lineWidth=3;x.beginPath();x.ellipse(sx,sy,r*1.25,r*.62,0,0,7);x.stroke()}
     x.globalAlpha=t.hidden?.5:1;x.beginPath();x.arc(sx,sy-lift,r,0,7);x.fillStyle=t.kind==="pc"?"#2a6cc4":"#b83030";x.fill();
@@ -2520,7 +2541,8 @@ function drawMapNow(){
   drawCityOverlay(x,m,ox,oy,cs,dm);
   const cur=combat.active?(combat.order||[])[combat.turn]:null;
   lvTokens(m).forEach(t=>{
-    const i=t.y*m.w+t.x;if(!dm&&(t.hidden||(t.kind==="npc"&&F.vis&&!F.vis.has(i))))return;
+    const i=t.y*m.w+t.x;if(!dm&&(t.hidden||(t.kind!=="pc"&&F.vis&&!F.vis.has(i))))return;
+    if(t.kind==="item"){drawItemTok(x,ox+(t.x+.5)*cs,oy+(t.y+.5)*cs,cs*.32,t,cs>18);return}
     let px=ox+(t.x+.5)*cs,py=oy+(t.y+.5)*cs;const pd=peersDrag[t.id];if(mact&&mact.kind==="tok"&&mact.id===t.id&&mact.moved){px=mact.px;py=mact.py}else if(pd&&pd.map===m.id&&isFinite(pd.x)&&isFinite(pd.y)){px=ox+pd.x*cs;py=oy+pd.y*cs}
     const r=cs*.4,isCur=cur&&((cur.ref&&cur.ref===t.ref)||(t.cid&&cur.id===t.cid)),col=t.kind==="pc"?"#1f5fa8":"#a82828";
     x.fillStyle="rgba(0,0,0,.45)";x.beginPath();x.ellipse(px+2,py+r*.75,r*.9,r*.35,0,0,7);x.fill();
@@ -2538,11 +2560,14 @@ function drawMapNow(){
   });
 }
 function cellAt(e){const cv=$("#mapCanvas"),r=cv.getBoundingClientRect(),lx=e.clientX-r.left,ly=e.clientY-r.top,[fx,fy]=s2c(lx,ly);return[Math.floor(fx),Math.floor(fy),lx,ly]}
-function tokenAt(m,cx,cy){const dm=isDM()&&!mapView.preview;const vis=dm?null:fogFor(m).vis;return lvTokens(m).reverse().find(t=>t.x===cx&&t.y===cy&&(dm||(!t.hidden&&(t.kind==="pc"||!vis||vis.has(cy*m.w+cx)))))}
+function tokenAt(m,cx,cy){const dm=isDM()&&!mapView.preview;const vis=dm?null:fogFor(m).vis;const hits=lvTokens(m).reverse().filter(t=>t.x===cx&&t.y===cy&&(dm||(!t.hidden&&(t.kind==="pc"||!vis||vis.has(cy*m.w+cx)))));return hits.find(t=>t.kind!=="item")||hits[0]}
 function isoTokAt(m,lx,ly){if(!mapView.iso)return null;const dm=isDM()&&!mapView.preview,vis=dm?null:fogFor(m).vis,[hw]=isoK(),r=Math.max(6,hw*.55),lift=r*1.1;let best=null;
   lvTokens(m).forEach(t=>{if(!dm&&(t.hidden||(t.kind!=="pc"&&vis&&!vis.has(t.y*m.w+t.x))))return;const [sx,sy]=c2s(t.x+.5,t.y+.5),d=Math.hypot(lx-sx,ly-(sy-lift));
     if(d<=r*1.3){const dep=t.x+t.y,mine=canMoveTok(t)?1:0;if(!best||mine>best.mine||(mine===best.mine&&(dep>best.dep||(dep===best.dep&&d<best.d))))best={t,dep,d,sx,sy,mine}}});
   return best}
+function drawItemTok(x,px,py,r,t,label){x.save();x.fillStyle="rgba(0,0,0,.4)";x.beginPath();x.ellipse(px+1,py+r*.9,r,r*.35,0,0,7);x.fill();
+  x.beginPath();x.moveTo(px,py-r);x.lineTo(px+r,py);x.lineTo(px,py+r);x.lineTo(px-r,py);x.closePath();x.fillStyle="#f5e663";x.shadowColor="#f5e663";x.shadowBlur=8;x.fill();x.shadowBlur=0;x.lineWidth=1.5;x.strokeStyle="#1a1426";x.stroke();
+  if(label){x.font='600 10px "IBM Plex Sans",Arial,sans-serif';x.textAlign="center";x.textBaseline="top";const nm=(t.name||"").slice(0,22),tw=x.measureText(nm).width;x.fillStyle="rgba(15,15,22,.8)";x.fillRect(px-tw/2-3,py+r+2,tw+6,13);x.fillStyle="#f5e663";x.fillText(nm,px,py+r+3)}x.restore()}
 function canMoveTok(t){return isDM()||(t.kind==="pc"&&t.ref&&t.ref===myCid())}
 function clearDecoAt(m,cx,cy){const d=decoAt(m,cx,cy);if(d==="A"){if(decoAt(m,cx+1,cy)==="a")setDeco(m,cx+1,cy,".");else if(decoAt(m,cx,cy+1)==="a")setDeco(m,cx,cy+1,".")}if(d==="a"){if(decoAt(m,cx-1,cy)==="A")setDeco(m,cx-1,cy,".");else if(decoAt(m,cx,cy-1)==="A")setDeco(m,cx,cy-1,".")}setDeco(m,cx,cy,".")}
 function paintAt(m,cx,cy){const tool=mapView.tool;if(cx<0||cy<0||cx>=m.w||cy>=m.h)return;
@@ -2691,6 +2716,7 @@ document.addEventListener("pointerdown",e=>{
   if(mptr.size===2){const p=[...mptr.values()];mact={kind:"pinch",d:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y),z:mapView.zoom,ox:mapView.ox,oy:mapView.oy,mx:(p[0].x+p[1].x)/2,my:(p[0].y+p[1].y)/2};return}
   if(e.button===2){e.preventDefault();ptrStart(e);return}
   const [cx,cy,lx,ly]=cellAt(e),tool=mapView.tool,dmEdit=isDM()&&mapView.edit&&!mapView.preview;
+  if(isDM()&&mapView.dropPick&&!mapView.preview){mapView.dropPick=false;mact=null;crewDrop(m,cx,cy);return}
   if(isDM()&&mapView.zoomPick&&!mapView.preview){if(cx>=0&&cy>=0&&cx<m.w&&cy<m.h)openChild(m,cx,cy);mact=null;return}
   if(isDM()&&mapView.place&&!mapView.preview){const f=FOES.find(x=>x.k===mapView.place);if(f&&cx>=0&&cy>=0&&cx<m.w&&cy<m.h){const F=foeStats(f,0);addFoeToken(m,{...F,base:f.n},cy*m.w+cx,nextFoeName(f.n)).then(()=>SFX.click()).catch(er=>toast(errMsg(er)));drawMap()}mact=null;return}
   if(isDM()&&!mapView.preview&&tool.startsWith("fog")&&fogOn(m)){
@@ -3128,6 +3154,17 @@ document.addEventListener("click",async e=>{
   else if(a==="mtokinit"){const t=tokens[id];if(t&&t.foe&&!t.cid){await tokensToInit([{...t,id}]);toast(t.name+" ist in der Initiative.")}render()}
   else if(a==="mtokhp"){const t=tokens[id];if(!t||!t.cid)return;write("game/combat",g=>{const x=g&&(g.order||[]).find(x=>x.id===t.cid);if(!x)return null;x.hp=Math.max(0,(x.hp||0)+d);return g})}
   else if(a==="mtokdel"){try{await db.doc("tokens/"+id).delete()}catch(e){}delete tokens[id];mapView.sel=null;render()}
+  else if(a==="mdroppick"){mapView.dropPick=!mapView.dropPick;if(mapView.dropPick)toast("Tippe auf das Feld, an dem die Crew abgesetzt wird.");render()}
+  else if(a==="mdropit"){const m=curMap(),c=myChar(),sel=$("#mdrop-it");if(!m||!c||!sel)return;const mine=mapTokens(m.id).find(t=>t.ref===myCid());if(!mine)return;
+    const it=(c.inventory||[]).find(x=>x.id===sel.value);if(!it)return;
+    const occ=new Set(lvTokens(m).map(t=>t.y*m.w+t.x));let pos=null;for(const [dx,dy] of [[1,0],[0,1],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){const X=mine.x+dx,Y=mine.y+dy;if(X>=0&&Y>=0&&X<m.w&&Y<m.h&&walkable(m,X,Y)&&!occ.has(Y*m.w+X)){pos=[X,Y];break}}if(!pos)pos=[mine.x,mine.y];
+    let ok=false;await editChar(myCid(),c=>{const x=(c.inventory||[]).find(v=>v.id===it.id);if(!x)return;x.qty-=1;if(x.qty<=0)c.inventory=c.inventory.filter(v=>v!==x);ok=true});if(!ok)return;
+    const tid=uid(),tok={map:m.id,z:m.z||0,x:pos[0],y:pos[1],kind:"item",name:it.name,item:{name:it.name,qty:1,note:it.note||"",entry:it.entry||null},by:me,byName:c.handle||c.name,hidden:false,at:Date.now()};tokens[tid]=tok;
+    try{await db.doc("tokens/"+tid).set(tok);SFX.click();toast(`${it.name} abgelegt.`)}catch(e){toast(errMsg(e))}render();drawMap()}
+  else if(a==="mpick"){const m=curMap(),t=tokens[id];if(!m||!t||t.kind!=="item"||!myCid())return;const mine=mapTokens(m.id).find(x=>x.ref===myCid());if(!isDM()&&(!mine||Math.abs(mine.x-t.x)>1||Math.abs(mine.y-t.y)>1)){toast("Stell dich direkt daneben.");return}
+    let got=false;await write("tokens/"+id,x=>{if(!x||x.taken)return null;got=true;return {...x,taken:me}});if(!got){toast("Schon weg.");return}
+    try{await db.doc("tokens/"+id).delete()}catch(e){}delete tokens[id];
+    await editChar(myCid(),c=>addItem(c,t.item||{name:t.name,qty:1,note:""}));SFX.pick();toast(`${t.name} aufgehoben.`);render();drawMap()}
   else if(a==="mcrew"){const m=curMap();if(!m)return;const tk=mapTokens(m.id),st=(m.start||[]).filter(i=>!tk.some(t=>t.y*m.w+t.x===i));let k=0;
     for(const [cid,c] of Object.entries(chars)){if(tk.some(t=>t.ref===cid))continue;const i=st[k++]??(m.start||[0])[0]??0,tid=uid(),tok={map:m.id,x:i%m.w,y:Math.floor(i/m.w),kind:"pc",ref:cid,name:c.handle||c.name,hidden:false,at:Date.now()};tokens[tid]=tok;try{await db.doc("tokens/"+tid).set(tok)}catch(e){toast(errMsg(e));break}}
     SFX.click();render()}
