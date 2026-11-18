@@ -2761,9 +2761,11 @@ async function acceptTrade(id){
 let myWhispers=[],dmWhispers={},whSubs={},whSeen="",wh={to:"",kind:"note",items:[],q:"",open:false};
 function subMyWhispers(){if(!db||!me||whSubs.__me)return;whSubs.__me=db.collection("whispers/"+me+"/items").onSnapshot(s=>{myWhispers=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.at-a.at);const nu=myWhispers.find(w=>!w.read);if(nu&&nu.id!==whSeen){whSeen=nu.id;SFX.pick()}renderSoon()},()=>{})}
 function subDmWhispers(){if(!isDM()||!db)return;const owners=[...new Set(Object.entries(chars).map(([id,c])=>c.owner||id))];
-  owners.forEach(o=>{if(whSubs[o])return;whSubs[o]=db.collection("whispers/"+o+"/items").onSnapshot(s=>{dmWhispers[o]=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.at-a.at);
+  owners.forEach(o=>{if(whSubs[o])return;whSubs[o]=db.collection("whispers/"+o+"/items").onSnapshot(s=>{dmWhispers[o]=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.at-a.at);whPrune(o);
     const n=dmReplyCount();if(n>dmRepSeen){const w=Object.values(dmWhispers).flat().find(x=>x.dmNew);if(w&&dmRepSeen>=0){SFX.pick();toast(`Antwort von ${w.charName||"Spieler"}: ${lastReply(w).slice(0,60)}`)}}dmRepSeen=n;renderSoon()},()=>{})})}
-let dmRepSeen=-1;
+let dmRepSeen=-1;const WH_KEEP=3,whPruning={};
+function whPrune(o){if(!isDM())return;const old=(dmWhispers[o]||[]).slice(WH_KEEP).filter(w=>w.read&&!w.dmNew&&!(w.kind==="loot"&&!w.taken)&&!whPruning[w.id]);
+  old.forEach(w=>{whPruning[w.id]=1;db.doc(`whispers/${o}/items/${w.id}`).delete().catch(()=>{delete whPruning[w.id]})})}
 function dmReplyCount(){return Object.values(dmWhispers).flat().filter(w=>w.dmNew).length}
 function lastReply(w){const r=(w.replies||[]).filter(x=>x.by==="p");return r.length?r[r.length-1].t:""}
 function whThread(w){const r=w.replies||[];if(!r.length)return "";return `<div class="wthread">${r.map(x=>`<div class="wm ${x.by==="p"?"p":""}"><small>${x.by==="p"?esc(w.charName||"Spieler"):"DM"} · ${new Date(x.at).toLocaleTimeString("de-CH",{hour:"2-digit",minute:"2-digit"})}</small>${esc(x.t)}</div>`).join("")}</div>`}
@@ -2773,7 +2775,7 @@ async function sendWhisper(cid,data){const c=chars[cid];if(!c)return false;const
 function whLine(x){return x.cat==="E"?`${x.amount} €$`:x.name}
 function whisperPanel(){
   const list=Object.entries(chars);if(!list.length)return `<section class="panel stack"><h2>Geheimnachricht <span class="tag">NUR FÜR EINEN</span></h2><div class="empty">Sobald Charaktere in der Crew sind, kannst du ihnen geheim schreiben.</div></section>`;
-  if(!wh.to||!chars[wh.to])wh.to=list[0][0];const to=chars[wh.to],owner=to.owner||wh.to,sent=(dmWhispers[owner]||[]).filter(w=>w.char===wh.to).slice(0,5);
+  if(!wh.to||!chars[wh.to])wh.to=list[0][0];const to=chars[wh.to],owner=to.owner||wh.to,sent=(dmWhispers[owner]||[]).filter(w=>w.char===wh.to).slice(0,WH_KEEP);
   const q=wh.q.trim().toLowerCase(),hits=q?allCatalog().filter(e=>e.name.toLowerCase().includes(q)).slice(0,6):[];
   const news=Object.entries(dmWhispers).flatMap(([o,ws])=>ws.filter(w=>w.dmNew).map(w=>[o,w]));
   return `${news.length?`<section class="panel stack" style="border-color:var(--mag)"><h2>Neue Antworten <span class="tag">${news.length}</span></h2>${news.map(([o,w])=>`<div class="item cat" style="display:block"><b>${esc(w.charName||"")}</b> <span class="muted">zu „${esc(w.title||(w.kind==="loot"?"Loot":"Notiz"))}“</span>${w.body?`<div class="muted" style="font-size:13px;white-space:pre-wrap">${esc(w.body.slice(0,200))}</div>`:""}${whThread(w)}${dmReplyBox(o,w)}</div>`).join("")}</section>`:""}
@@ -2788,10 +2790,10 @@ function whisperPanel(){
       ${wh.items.length?`<div class="chips">${wh.items.map((x,i)=>`<button class="pick" data-act="whrm" data-i="${i}" title="Entfernen"><b style="font-size:13px">${esc(x.name)} ✕</b></button>`).join("")}</div>`:`<div class="muted" style="font-size:13px">Noch nichts ausgewählt. Suche oben, oder würfle im Loot-Generator und schick die Beute mit „Geheim an …“.</div>`}`:""}
     <div class="row"><button class="btn primary" data-act="whsend">Geheim an ${esc(to.handle||to.name)} senden</button></div>
     ${sent.length?`<span class="label">Zuletzt an ${esc(to.handle||to.name)}</span><div class="inv">${sent.map(w=>`<div class="item cat"><span class="n"><b>${esc(w.title||(w.kind==="loot"?"Loot":"Notiz"))}</b><small>${w.kind==="loot"?(w.items||[]).map(whLine).join(", "):esc((w.body||"").slice(0,80))}</small>${(w.replies||[]).length?`<details><summary class="muted" style="cursor:pointer;font-size:13px">${w.replies.length} ${w.replies.length===1?"Antwort":"Antworten"}${w.dmNew?" · neu":""}</summary>${whThread(w)}${dmReplyBox(owner,w)}</details>`:""}</span><span class="mono" style="font-size:12px;color:${w.taken?"var(--ok)":w.read?"var(--cyan)":"var(--muted)"}">${w.kind==="loot"?(w.taken?"angenommen":w.read?"gesehen":"neu"):(w.read?"gelesen":"neu")}</span></div>`).join("")}</div>`:""}
-    <p class="muted" style="margin:0;font-size:13px">Nur der gewählte Spieler bekommt ein Fenster. Die anderen sehen weder die Nachricht noch die Beute. Spieler können auf deine Nachrichten antworten, aber selbst keine neuen beginnen.</p>
+    <p class="muted" style="margin:0;font-size:13px">Nur der gewählte Spieler bekommt ein Fenster. Die anderen sehen weder die Nachricht noch die Beute. Spieler können auf deine Nachrichten antworten, aber selbst keine neuen beginnen. Pro Spieler bleiben nur die letzten ${WH_KEEP} Nachrichten, ältere werden gelöscht. Ungelesenes und nicht angenommene Beute bleiben, bis sie erledigt sind.</p>
   </section>`;
 }
-function inboxPanel(){const list=myWhispers.filter(w=>w.char===myCid()||!chars[w.char]).slice(0,8);if(!list.length)return "";
+function inboxPanel(){const list=myWhispers.filter(w=>w.char===myCid()||!chars[w.char]).slice(0,WH_KEEP);if(!list.length)return "";
   return `<section class="panel stack" style="border-color:var(--mag)"><h2>Vom DM <span class="tag">NUR FÜR DICH</span></h2><div class="inv">${list.map(w=>`<div class="item cat"><span class="n"><b>${esc(w.title||(w.kind==="loot"?"Fundstück":"Notiz"))}</b><small>${w.kind==="loot"?(w.items||[]).map(whLine).join(", "):""}</small>${w.body?`<div style="white-space:pre-wrap;margin-top:4px">${esc(w.body)}</div>`:""}${whThread(w)}<div class="wreply"><input id="whr-${w.id}" placeholder="Dem DM antworten…" maxlength="600"><button class="btn small" data-act="whreply" data-id="${w.id}">Antworten</button></div></span><span class="acts">${w.kind==="loot"&&!w.taken?`<button class="btn small primary" data-act="whtake" data-id="${w.id}">Annehmen</button>`:w.kind==="loot"?'<span class="mono" style="color:var(--ok);font-size:12px">angenommen</span>':""}</span></div>`).join("")}</div></section>`}
 function renderWhisperModal(){
   let el=$("#whModal");const w=mode==="online"?myWhispers.find(x=>!x.read):null;
