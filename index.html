@@ -341,9 +341,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--cyan);outline:none}
 .portrait-drop:hover em,.portrait-drop:focus-visible em,.portrait-drop.over em,.portrait-drop:not(:has(img)) em{opacity:1}
 .portrait-drop.over{border-color:var(--yel);box-shadow:0 0 22px rgba(245,228,0,.5);transform:scale(1.04)}
 #view.split{max-width:none;display:grid;grid-template-columns:repeat(var(--pn),minmax(0,1fr));gap:14px;align-items:start}
-#view.split .pane{display:grid;gap:14px;align-content:start;min-width:0;height:calc(100dvh - var(--hdr,120px) - 28px - var(--qb,0px));overflow:auto;overscroll-behavior:contain;padding:0 4px 24px 0;border-top:2px solid transparent}
+body.multi #nav{display:none}
+#view.split .pane{display:flex;flex-direction:column;gap:14px;min-width:0;height:calc(100dvh - var(--hdr,120px) - 28px - var(--qb,0px));overflow:auto;overscroll-behavior:contain;padding:0 4px 24px 0;border-top:2px solid transparent}
 #view.split .pane.focus{border-top-color:var(--yel)}
-#view.split .pbody{display:grid;gap:14px;min-width:0}
+#view.split .pbody{display:grid;gap:14px;min-width:0;flex:1 0 auto;align-content:start}
+#view.split .pane>.phead{order:2;top:auto;bottom:0;box-shadow:0 -8px 18px rgba(0,0,0,.35)}
 .phead{display:flex;gap:8px;align-items:center;position:sticky;top:0;z-index:4;background:var(--bg2);border:1px solid var(--line);padding:6px 8px}
 .phead select{width:auto;flex:1;min-width:0;padding:5px 8px}
 .pbar{display:flex;gap:3px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:thin}
@@ -380,6 +382,26 @@ nav button.pfocus{outline:1px solid var(--cyan);outline-offset:1px}
 body.dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 .pinbtn{background:none;border:0;cursor:pointer;color:var(--line);font-size:15px;padding:0 4px}
 .pinbtn[aria-pressed="true"]{color:var(--yel)}
+#rollFeed{position:fixed;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(16px + var(--qb,0px) + env(safe-area-inset-bottom,0px));z-index:45;display:grid;gap:6px;width:min(260px,calc(100vw - 24px));pointer-events:none}
+#rollFeed .rf{pointer-events:auto;cursor:pointer;background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--cyan);padding:6px 10px;display:grid;grid-template-columns:1fr auto;gap:0 8px;align-items:center;box-shadow:0 6px 18px rgba(0,0,0,.4);animation:rfin .25s ease-out;transition:opacity .4s,transform .4s}
+#rollFeed .rf.crit{border-left-color:var(--yel)}#rollFeed .rf.fumble{border-left-color:var(--mag)}
+#rollFeed .rf.out{opacity:0;transform:translateX(20px)}
+#rollFeed .rf-t{font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#rollFeed .rf-t span{color:var(--muted)}
+#rollFeed .rf-n{grid-row:span 2;font:700 22px/1 "IBM Plex Mono",monospace;color:var(--yel)}
+#rollFeed small{color:var(--muted);font-size:11px;overflow-wrap:anywhere}
+@keyframes rfin{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#rollFeed .rf{animation:none}}
+.nbadge{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--mag);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center}
+.wthread{display:grid;gap:6px;margin-top:6px}
+.wthread .wm{padding:6px 10px;border:1px solid var(--line);background:var(--panel2);font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.wthread .wm.p{border-color:var(--cyan);margin-left:18px}
+.wthread .wm small{display:block;color:var(--muted);font-size:11px}
+.wreply{display:flex;gap:6px;margin-top:6px}
+.wreply input,.wreply textarea{flex:1;min-width:0}
+.shopin{width:84px!important;padding:4px 6px!important}
+.fixgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.fixgrid label{display:grid;gap:2px;font-size:12px;color:var(--muted)}
+.fixgrid input{padding:4px 6px}
 .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;background:var(--panel2);border:1px solid var(--mag);padding:10px 16px;max-width:calc(100% - 32px);font-size:14px}
 
 @media (prefers-reduced-motion:reduce){.pdie.rolling,.cube-wrap.rolling{animation-duration:.01s}.tray-total.glitch{animation:none}}
@@ -569,21 +591,21 @@ function catList(){
   const q=catQuery.trim().toLowerCase();
   const list=allCatalog().filter(e=>(!catFilter||e.cat===catFilter)&&(!q||(e.name+" "+(e.note||"")).toLowerCase().includes(q)));
   if(!list.length)return `<div class="empty">Nichts gefunden. ${isDM()?"Lege unten einen eigenen Eintrag an.":"Frag den DM nach einem eigenen Eintrag."}</div>`;
-  const can=mode==="online"&&(isDM()||myChar());
+  const can=mode==="online"&&isDM(),inShop=new Set((shop.items||[]).map(x=>x.eid));
   return list.map(e=>`<div class="item cat"><span class="n"><b>${esc(e.name)}</b> <span class="mono" style="color:var(--yel);white-space:nowrap">${e.price} €$</span> <span class="chip">${(CATS.find(c=>c[0]===e.cat)||["","?"])[1]}</span>${e.custom?' <span class="chip">eigen</span>':""}<small>${esc([catLine(e),e.note].filter(Boolean).join(" · "))}</small></span>
-    <span class="acts">${can?`<button class="btn small primary" data-act="catadd" data-id="${e.id}">Hinzufügen</button>`:""}${e.custom&&isDM()?`<button class="btn small" data-act="catdel" data-id="${e.id}" aria-label="Eintrag löschen">✕</button>`:""}</span></div>`).join("");
+    <span class="acts">${inShop.has(e.id)?'<span class="chip you">im Shop</span>':""}${can?`<button class="btn small" data-act="shopadd" data-id="${e.id}" ${inShop.has(e.id)?"disabled":""}>In den Shop</button><button class="btn small primary" data-act="catadd" data-id="${e.id}">Geben</button>`:""}${e.custom&&isDM()?`<button class="btn small" data-act="catdel" data-id="${e.id}" aria-label="Eintrag löschen">✕</button>`:""}</span></div>`).join("");
 }
 function viewCatalog(){
-  const targets=isDM()?Object.entries(chars):myChar()?[[myCid(),myChar()]]:[];
+  const targets=isDM()?Object.entries(chars):[];
   if(catTo&&!targets.some(([k])=>k===catTo))catTo=null;
   if(!catTo&&targets.length)catTo=(targets.find(([k])=>k===myCid())||targets[0])[0];
-  return `<section class="panel hot stack"><div><span class="label">Datenbank</span><h1>Katalog</h1><p class="muted" style="margin:0;max-width:65ch">Waffen, Armor, Cyberware und Ausrüstung mit Richtpreisen. Ein Klick legt den Eintrag ins passende Feld der Akte. Cyberware zieht Humanity ab.</p></div>
+  return `<section class="panel hot stack"><div><span class="label">Datenbank</span><h1>Katalog</h1><p class="muted" style="margin:0;max-width:65ch">${isDM()?"Alle Waffen, Armor, Cyberware und Ausrüstung mit Richtpreisen. „In den Shop“ gibt einen Eintrag zum Kaufen frei, „Geben“ legt ihn direkt in eine Akte.":"Alle Waffen, Armor, Cyberware und Ausrüstung mit Richtpreisen zum Nachschlagen. Kaufen kannst du nur im Shop, was der DM freigegeben hat."}</p></div>
     <div class="row" style="align-items:end">
       <div class="field" style="flex:2 1 200px"><label class="label" for="cat-q">Suche</label><input id="cat-q" type="search" value="${esc(catQuery)}" placeholder="Pistole, Cybereye, Granate…"></div>
       ${targets.length?`<div class="field" style="flex:1 1 150px"><label class="label" for="cat-to">Für</label><select id="cat-to">${targets.map(([k,c])=>`<option value="${k}" ${k===catTo?"selected":""}>${esc(c.handle||c.name)}${k===myCid()?" (du)":""}</option>`).join("")}</select></div>
       <label class="row" style="gap:6px;padding-bottom:8px"><input type="checkbox" id="cat-pay" ${catPay?"checked":""} style="width:auto"> <span>Preis von den Eddies abziehen</span></label>`:""}
     </div>
-    ${mode!=="online"?"":targets.length?"":`<p class="muted" style="margin:0">Erstelle zuerst einen Charakter, dann kannst du aus dem Katalog hinzufügen.</p>`}
+    ${isDM()||mode!=="online"?"":`<div><button class="btn small primary" data-tab="shop">Zum Shop</button></div>`}
     <div class="seg" style="flex-wrap:wrap"><button data-act="catf" data-k="" aria-pressed="${!catFilter}">Alle</button>${CATS.map(([k,l])=>`<button data-act="catf" data-k="${k}" aria-pressed="${catFilter===k}">${l}</button>`).join("")}</div>
   </section>
   <section class="panel stack"><div class="inv" id="catList">${catList()}</div></section>
@@ -597,6 +619,48 @@ function viewCatalog(){
       <button class="btn">Anlegen</button></form>
     <p class="muted" style="margin:0;font-size:13px">„Wert“ ist bei Waffen der Schaden (z. B. 5W6), bei Armor die SP und bei Cyberware der Verlust an Humanity.</p></section>`:""}`;
 }
+/* --- Shop --- */
+const SHOPTYPES=[["mix","Gemischtwaren","Von allem etwas",["W","A","G","D","C","P"],1],["guns","Waffenhändler","Waffen und Armor",["W","A"],1],["doc","Ripperdoc","Cyberware und Medizin",["C","D"],1],["net","Netrunner-Laden","Programme und Technik",["P","G"],1],["black","Schwarzmarkt","Teurer, aber auch seltene Ware",["W","A","C","D","P"],1.5]];
+const SHOPLV=[[1,"Strasse",100],[2,"Söldner",500],[3,"Profi",1000],[4,"Elite",1e9]];
+let shopCfg={type:"mix",lv:0,n:8},shopQ="";
+function crewLevel(){const l=Object.values(chars);if(!l.length)return 1;const ip=l.reduce((s,c)=>s+(c.ipTotal||0),0)/l.length,eb=l.reduce((s,c)=>s+(c.eddies||0),0)/l.length;
+  return ip>=1500||eb>=8000?4:ip>=600||eb>=3000?3:ip>=150||eb>=1000?2:1}
+function rollShop(type,lv,n){const T=SHOPTYPES.find(x=>x[0]===type)||SHOPTYPES[0],cap=(SHOPLV.find(x=>x[0]===lv)||SHOPLV[0])[2],black=type==="black";
+  let pool=allCatalog().filter(e=>T[3].includes(e.cat)&&e.price<=cap);
+  if(black){const rare=allCatalog().filter(e=>T[3].includes(e.cat)&&e.price>cap&&e.price<=cap*5);if(rare.length)pool=pool.concat([pickOne(rare)])}
+  const w=e=>(cap<1e8&&e.price>=cap/5?3:1)*(lv>=3&&e.price<=50?.4:1),out=[];
+  while(out.length<n&&pool.length){let tot=pool.reduce((s,e)=>s+w(e),0),r=Math.random()*tot,i=0;for(;i<pool.length-1;i++){r-=w(pool[i]);if(r<=0)break}
+    const e=pool.splice(i,1)[0];const st=e.price>=1000?1:e.price>=500?1+Math.floor(Math.random()*2):e.cat==="D"||e.price<=50?2+Math.floor(Math.random()*4):1+Math.floor(Math.random()*3);
+    out.push(shopItem(e,Math.round(e.price*T[4]),st))}
+  return out}
+function shopItem(e,price,stock){const entry={...e};delete entry.custom;return {sid:uid(),eid:e.id,name:e.name,cat:e.cat,price,stock,entry:JSON.parse(JSON.stringify(entry))}}
+function viewShop(){
+  if(mode==="offline")return offlineNote();
+  const dm=isDM(),c=myChar(),items=shop.items||[],open=!!shop.open;
+  const row=x=>{const sold=x.stock===0,cant=!c||(c.eddies||0)<x.price;
+    return `<div class="item cat"><span class="n"><b>${esc(x.name)}</b> <span class="chip">${(CATS.find(k=>k[0]===x.cat)||["","?"])[1]}</span><small>${esc([catLine(x.entry||{}),(x.entry||{}).note].filter(Boolean).join(" · "))}</small></span>
+    <span class="acts">${dm?`<label class="muted" style="font-size:12px">€$ <input class="shopin" type="number" min="0" data-shop="price" data-sid="${x.sid}" value="${x.price}"></label><label class="muted" style="font-size:12px">Stück <input class="shopin" type="number" min="-1" data-shop="stock" data-sid="${x.sid}" value="${x.stock}" title="−1 = unbegrenzt"></label><button class="btn small" data-act="shoprm" data-id="${x.sid}" aria-label="${esc(x.name)} entfernen">✕</button>`
+      :`<span class="mono" style="color:var(--yel);white-space:nowrap">${x.price} €$</span><span class="mono muted" style="font-size:12px">${x.stock<0?"":sold?"ausverkauft":"noch "+x.stock}</span><button class="btn small primary" data-act="shopbuy" data-id="${x.sid}" ${sold||cant||!open?"disabled":""} ${cant&&!sold?`title="Zu wenig Eddies"`:""}>Kaufen</button>`}</span></div>`};
+  const head=`<section class="panel hot stack"><div class="row" style="justify-content:space-between"><div><span class="label">Laden</span><h1>${esc(shop.name||"Shop")}</h1></div>${c&&!dm?`<span class="chip">€$ <b class="mono" style="color:var(--yel)">${c.eddies||0}</b></span>`:""}</div>
+    ${dm?`<div class="row" style="align-items:end"><div class="field" style="flex:2 1 200px"><label class="label" for="shop-name">Name des Ladens</label><input id="shop-name" value="${esc(shop.name||"")}" placeholder="Viktors Klinik, Afterlife-Hinterzimmer…"></div><button class="btn ${open?"mag":"primary"}" data-act="shopopen">${open?"Laden schliessen":"Laden öffnen"}</button></div>
+      <p class="muted" style="margin:0;font-size:13px">${open?"Geöffnet: Die Spieler können jetzt kaufen.":"Geschlossen: Die Spieler sehen die Ware, können aber nichts kaufen."} Preis und Stückzahl kannst du direkt ändern, −1 heisst unbegrenzt.</p>`
+    :`<p class="muted" style="margin:0">${!items.length?"Der DM hat noch nichts freigegeben.":open?"Hier gibt es nur, was der DM freigegeben hat. Gekauftes landet direkt in deiner Akte.":"Der Laden ist gerade geschlossen."}</p>`}</section>`;
+  const list=`<section class="panel stack"><h2>Ware <span class="tag">${items.length}</span></h2>${items.length?`<div class="inv">${items.map(row).join("")}</div>`:`<div class="empty">${dm?"Noch leer. Würfle unten ein Sortiment oder hol Einträge aus dem Katalog.":"Nichts im Angebot."}</div>`}
+    ${dm&&items.length?`<div><button class="btn small" data-act="shopclear">Alles entfernen</button></div>`:""}
+    ${dm&&(shop.log||[]).length?`<span class="label">Verkäufe</span><div class="muted" style="font-size:13px">${shop.log.slice(0,6).map(l=>`${esc(l.who)}: ${esc(l.name)} für ${l.price} €$`).join("<br>")}</div>`:""}</section>`;
+  if(!dm)return head+list;
+  const sug=crewLevel(),lv=shopCfg.lv||sug,q=shopQ.trim().toLowerCase(),hits=q?allCatalog().filter(e=>e.name.toLowerCase().includes(q)).slice(0,8):[];
+  return head+list+`<section class="panel stack"><h2>Sortiment würfeln <span class="tag">NUR DM</span></h2>
+    <span class="label">Art des Ladens</span><div class="chips">${SHOPTYPES.map(([k,l,d])=>`<button class="pick" data-act="shoptype" data-k="${k}" aria-pressed="${shopCfg.type===k}"><b>${l}</b><small>${d}</small></button>`).join("")}</div>
+    <span class="label">Level der Crew <span class="muted" style="text-transform:none;letter-spacing:0">· Vorschlag nach IP und Eddies: ${sug} (${SHOPLV[sug-1][1]})</span></span>
+    <div class="seg">${SHOPLV.map(([n,l,cap])=>`<button data-act="shoplv" data-d="${n}" aria-pressed="${lv===n}">${n} · ${l}<small style="display:block;font-size:11px;opacity:.7">${cap>1e8?"alles":"bis "+cap+" €$"}</small></button>`).join("")}</div>
+    <div class="row" style="align-items:end"><div class="field" style="flex:0 0 110px"><label class="label" for="shop-n">Anzahl</label><input id="shop-n" type="number" min="1" max="30" value="${shopCfg.n}"></div>
+      <button class="btn primary" data-act="shoproll" data-k="replace">Neu würfeln</button><button class="btn" data-act="shoproll" data-k="add">Dazu würfeln</button></div>
+    <p class="muted" style="margin:0;font-size:13px">Höhere Level bringen mehr teure Ware und weniger Kleinkram. Der Schwarzmarkt verlangt 50 % mehr und hat oft ein Stück über dem Level.</p></section>
+  <section class="panel stack"><h2>Aus dem Katalog freigeben</h2><div class="field"><label class="label" for="shop-q">Suche</label><input id="shop-q" type="search" value="${esc(shopQ)}" placeholder="Pistole, Speedheal, Cybereye…"></div>
+    <div class="chips" id="shopHits">${shopHits(hits)}</div></section>`;
+}
+function shopHits(hits){const inS=new Set((shop.items||[]).map(x=>x.eid));return hits.map(e=>`<button class="pick" data-act="shopadd" data-id="${e.id}" ${inS.has(e.id)?"disabled":""}><b style="font-size:13px">+ ${esc(e.name)}</b><small>${e.price} €$${inS.has(e.id)?" · schon drin":""}</small></button>`).join("")}
 function applyEntry(c,e){
   if(e.cat==="W"){c.weapons=c.weapons||[];c.weapons.push({id:uid(),name:e.name,skill:e.skill||"Handgun",dmg:e.dmg||"2W6",rof:e.rof||1,mag:e.mag||0,ammo:e.mag||0,slot:"ready"})}
   else if(e.cat==="A"){c.armor=c.armor||{};armorToItem(c,e.zone||"body");c.armor[e.zone||"body"]={sp:e.sp||0,max:e.sp||0,name:e.name}}
@@ -631,10 +695,10 @@ const pHit=(base,dv)=>clamp((base+10-dv)/10,.05,.95);
 const KINDS=[["handout","Handouts"],["npc","NSCs"],["journal","Journal"]];
 
 let db=null,user=null,me=null,mode="loading";
-let chars={},game={},rolls=[],names={};
+let chars={},game={},rolls=[],names={},trades={},shop={items:[]},dmAuto=false,charFix=false;
 let tab="char";
 let room=null,myName="",fs=null,offlineReason="",players={},authUid=null,joinErr="",joinBusy=false;
-const TABLIST=[["char","Charakter"],["dice","Würfeln"],["party","Crew"],["map","Karte"],["camp","Kampagne"],["cat","Katalog"],["rules","Regeln"],["dm","DM"]];
+const TABLIST=[["char","Charakter"],["dice","Würfeln"],["party","Crew"],["map","Karte"],["camp","Kampagne"],["cat","Katalog"],["shop","Shop"],["rules","Regeln"],["dm","DM"]];
 let panes=[],activePane=0;
 try{const sv=JSON.parse(localStorage.getItem("nct-panes")||"[]");if(Array.isArray(sv)&&sv.length>1&&sv.every(k=>TABLIST.some(t=>t[0]===k)))panes=sv.slice(0,3)}catch(e){}
 const savePanes=()=>{try{localStorage.setItem("nct-panes",JSON.stringify(panes))}catch(e){}};
@@ -790,10 +854,10 @@ function scaleBar(){const el=$("#mapScale"),m=curMap();if(!el)return;if(!m){el.h
   const s=mapScale(m.id),cs=28*mapView.zoom;let n=1;for(const k of [1,2,5,10,20,50,100]){n=k;if(k*cs>=70)break}
   el.hidden=false;const nm=(SCALES.find(x=>x[0]===s)||[0,""])[1],dist=v=>v>=1000?(v/1000).toLocaleString("de-CH")+" km":v+" m";el.innerHTML=`<span>${nm?nm+" · ":""}1 Feld = ${dist(s)} · ${n} ${n===1?"Feld":"Felder"} = ${dist(n*s)}</span><i style="width:${Math.round(n*cs)}px"></i>`}
 function dragDistance(x,ox,oy,cs){if(!(mact&&mact.kind==="tok"&&mact.moved))return;const m=curMap();if(!m)return;
-  const [fx0,fy0]=s2c(mact.px,mact.py),tx=Math.floor(fx0),ty=Math.floor(fy0),n=Math.max(Math.abs(tx-mact.cx),Math.abs(ty-mact.cy)),o0=c2s(mact.cx+.5,mact.cy+.5);if(!n)return;
+  const px=mact.px+(mact.gx||0),py=mact.py+(mact.gy||0),[fx0,fy0]=s2c(px,py),tx=Math.floor(fx0),ty=Math.floor(fy0),n=Math.max(Math.abs(tx-mact.cx),Math.abs(ty-mact.cy)),o0=c2s(mact.cx+.5,mact.cy+.5);if(!n)return;
   const s=mapScale(m.id),dd=n*s,txt=`${n} ${n===1?"Feld":"Felder"} · ${dd>=1000?(dd/1000).toLocaleString("de-CH")+" km":dd+" m"}`;
-  x.save();x.setLineDash([6,5]);x.strokeStyle="rgba(255,255,255,.85)";x.lineWidth=2;x.beginPath();x.moveTo(o0[0],o0[1]);x.lineTo(mact.px,mact.py);x.stroke();x.setLineDash([]);
-  x.font='700 13px "IBM Plex Sans",Arial,sans-serif';x.textBaseline="middle";const tw=x.measureText(txt).width,bx=mact.px+18,by=mact.py-22;
+  x.save();x.setLineDash([6,5]);x.strokeStyle="rgba(255,255,255,.85)";x.lineWidth=2;x.beginPath();x.moveTo(o0[0],o0[1]);x.lineTo(px,py);x.stroke();x.setLineDash([]);
+  x.font='700 13px "IBM Plex Sans",Arial,sans-serif';x.textBaseline="middle";const tw=x.measureText(txt).width,bx=px+18,by=py-22;
   x.fillStyle="rgba(15,15,22,.9)";x.fillRect(bx,by-11,tw+14,22);x.fillStyle="#f5e400";x.fillRect(bx,by-11,3,22);x.fillStyle="#fff";x.fillText(txt,bx+8,by+1);x.restore()}
 function drawPointers(){
   const cv=$("#ptrCanvas"),m=curMap();if(!cv)return;const dpr=Math.min(window.devicePixelRatio||1,2),W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;
@@ -859,7 +923,9 @@ function enterRoom(){
   const t=setTimeout(()=>{if(mode==="online"&&!Object.keys(chars).length)toast("Die Spieldaten antworten noch nicht. Prüfe deine Verbindung.")},10000);
   db.collection("players").onSnapshot(s=>{players={};s.docs.forEach(d=>players[d.id]=d.data());names=Object.fromEntries(Object.entries(players).map(([k,v])=>[k,v.name||""]));renderSoon()},e=>toast(errMsg(e)));
   db.collection("live").onSnapshot(s=>{const nd={},np={},now=Date.now();s.docs.forEach(d=>{const v=d.data();if(d.id!==me&&v.drag&&v.drag.id&&now-(v.at||0)<8000)nd[v.drag.id]=v.drag;if(d.id!==me&&v.ptr&&v.ptr.k&&now-(v.at||0)<5000)np[v.ptr.k]=v.ptr});peersDrag=nd;ptrPeers(np);drawMap()},()=>{});
-  db.doc("game/state").onSnapshot(s=>{game=s.exists?s.data():{};renderSoon()},e=>toast(errMsg(e)));
+  db.doc("game/state").onSnapshot(s=>{game=s.exists?s.data():{};if(!game.dmId&&!dmAuto&&user&&user.isOwner&&user.isOwner()&&!s.metadata.fromCache){dmAuto=true;write("game/state",g=>g&&g.dmId?null:({...(g||{}),dmId:me}))}renderSoon()},e=>toast(errMsg(e)));
+  db.collection("trades").onSnapshot(s=>{trades={};s.docs.forEach(d=>trades[d.id]=d.data());tradeNotify();renderSoon()},()=>{});
+  db.doc("shop/main").onSnapshot(s=>{shop=s.exists?s.data():{items:[]};renderSoon()},()=>{});
   db.collection("chars").onSnapshot(s=>{allChars={};s.docs.forEach(d=>allChars[d.id]=normalizeChar(d.data()));const seen=new Set();chars={};Object.entries(allChars).sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0)).forEach(([id,c])=>{const o=c.owner||id;if(c.active===false||seen.has(o))return;seen.add(o);chars[id]=c});
     if(!s.metadata.fromCache)clearTimeout(t);
     loadNames();renderSoon();
@@ -876,7 +942,7 @@ function enterRoom(){
   db.collection("rolls").orderBy("at","desc").limit(40).onSnapshot(s=>{
     s.docChanges().forEach(c=>{
       if(c.type!=="added")return;const r=c.doc.data();
-      if(!myRolls.has(c.doc.id)&&r.at>Date.now()-15000&&r.by!==me)queueRoll(r);
+      if(!myRolls.has(c.doc.id)&&r.at>Date.now()-15000&&r.by!==me)sideRoll(r);
     });
     rolls=s.docs.map(d=>({id:d.id,...d.data()}));renderLog();
   },e=>toast(errMsg(e)));
@@ -910,13 +976,14 @@ function render(){
   if(mode==="loading")return;
   if(mode==="join"){v.classList.remove("split");v.innerHTML=viewJoin();return}
   const top=mode==="online"&&(!(openTabs().length===1&&openTabs()[0]==="rules")||myInitPending())?lootBanner()+combatBanner():"";
+  document.body.classList.toggle("multi",panes.length>1&&window.innerWidth>=760);
   if(panes.length>1&&window.innerWidth>=760){
     v.classList.add("split");v.style.setProperty("--pn",panes.length);
     [...v.children].forEach(ch=>{if(!ch.classList.contains("pane"))ch.remove()});
     panes.forEach((k,i)=>{let p=v.children[i];
       if(!p){p=document.createElement("div");p.className="pane";p.innerHTML=`<div class="phead"></div><div class="pbody"></div>`;v.appendChild(p)}
       p.dataset.i=i;p.classList.toggle("focus",i===activePane);
-      p.querySelector(".phead").innerHTML=`<div class="pbar" role="toolbar" aria-label="Inhalt von Fenster ${i+1}">${TABLIST.map(([key,l])=>{const used=key!==k&&panes.includes(key);return `<button data-act="psel" data-pane="${i}" data-k="${key}" aria-pressed="${key===k}" ${used?`disabled title="Schon in Fenster ${panes.indexOf(key)+1} offen"`:""}>${l}</button>`}).join("")}</div><button class="btn small" data-act="pclose" data-i="${i}" aria-label="Fenster ${i+1} schliessen">✕</button>`;
+      p.querySelector(".phead").innerHTML=`<div class="pbar" role="toolbar" aria-label="Inhalt von Fenster ${i+1}">${TABLIST.map(([key,l])=>{const used=key!==k&&panes.includes(key);return `<button data-act="psel" data-pane="${i}" data-k="${key}" aria-pressed="${key===k}" ${used?`disabled title="Schon in Fenster ${panes.indexOf(key)+1} offen"`:""}>${l}${navBadge(key)}</button>`}).join("")}</div><button class="btn small" data-act="pclose" data-i="${i}" aria-label="Fenster ${i+1} schliessen">✕</button>`;
       const body=p.querySelector(".pbody");if(body.dataset.key!==k){body.innerHTML="";body.dataset.key=k}
       renderInto(body,k,i===0?top:"")});
     while(v.children.length>panes.length)v.lastChild.remove();
@@ -926,6 +993,11 @@ function render(){
   }
   renderLog();renderLoot();renderDock();renderInitModal();renderWhisperModal();if(mode==="online"){subMyWhispers();subDmWhispers()}
 }
+function navBadge(k){let n=0;if(mode!=="online")return"";
+  if(k==="dm"&&isDM())n=dmReplyCount();
+  else if(k==="char")n=Object.values(trades).filter(t=>t.status==="open"&&t.to===myCid()).length;
+  else if(k==="shop"&&!isDM())n=shop.open&&(shop.items||[]).length?0:0;
+  return n?` <span class="nbadge" aria-label="${n} neu">${n}</span>`:""}
 function renderInto(el,k,top){
   if(k==="map"){if(mode!=="online")el.innerHTML=offlineNote();else renderMapView(el,top)}
   else if(k==="char")el.innerHTML=top+viewChar();
@@ -933,6 +1005,7 @@ function renderInto(el,k,top){
   else if(k==="party")el.innerHTML=top+viewParty();
   else if(k==="camp")el.innerHTML=top+viewCampaign();
   else if(k==="cat")el.innerHTML=top+viewCatalog();
+  else if(k==="shop")el.innerHTML=top+viewShop();
   else if(k==="rules")el.innerHTML=top+viewRules();
   else if(k==="dm")el.innerHTML=top+(isDM()?viewDM():viewClaimDM());
 }
@@ -964,7 +1037,7 @@ function renderDock(){
 function renderNav(){
   const sb=$("#sndBtn");if(sb){sb.textContent=SFX.on?"Ton an":"Ton aus";sb.setAttribute("aria-pressed",SFX.on)}
   const tabs=TABLIST;
-  const open=panes.length>1?panes:[tab];$("#nav").innerHTML=tabs.map(([k,l])=>`<button data-tab="${k}" aria-current="${open.includes(k)}"${panes.length>1&&panes[activePane]===k?' class="pfocus"':""}>${l}</button>`).join("");
+  const open=panes.length>1?panes:[tab];$("#nav").innerHTML=tabs.map(([k,l])=>`<button data-tab="${k}" aria-current="${open.includes(k)}"${panes.length>1&&panes[activePane]===k?' class="pfocus"':""}>${l}${navBadge(k)}</button>`).join("");
   $("#winSel").innerHTML=[1,2,3].map(n=>`<button data-act="wins" data-d="${n}" aria-pressed="${(panes.length||1)===n}" aria-label="${n} ${n===1?"Fenster":"Fenster nebeneinander"}">${n===1?"▢":n===2?"▢▢":"▢▢▢"}</button>`).join("");
   const hd=document.querySelector("header");if(hd)document.documentElement.style.setProperty("--hdr",hd.offsetHeight+"px");
   const w=[];
@@ -1014,6 +1087,7 @@ function viewChar(){
     <details><summary class="label" style="cursor:pointer">So spielst du ${esc(c.role)}</summary><div style="margin-top:10px">${roleTips(c.role)}</div></details>
   </section>
   ${inboxPanel()}
+  ${tradePanel(c)}
   ${progressPanel(c)}
   ${gearPanel(c)}
   ${skillsPanel(c,true)}
@@ -1023,8 +1097,23 @@ function viewChar(){
       <div class="field"><label class="label" for="c-cyber">Cyberware-Notizen</label><textarea id="c-cyber" data-bind="cyberware" placeholder="Kiroshi-Optik, Neural Link…">${esc(c.cyberware)}</textarea></div>
       <div class="field"><label class="label" for="c-notes">Notizen &amp; Skills</label><textarea id="c-notes" data-bind="notes" placeholder="Handgun +6, Perception +4…">${esc(c.notes)}</textarea></div>
       <span class="muted" style="font-size:13px">Änderungen werden beim Verlassen des Feldes gespeichert.</span>
+      <div><button class="btn small" data-act="fixopen" aria-expanded="${charFix}">${charFix?"Korrektur schliessen":"Fehler in der Akte korrigieren"}</button></div>
     </section>
+  ${charFix?fixPanel(c):""}
 `;
+}
+function fixPanel(c){
+  const sk=c.skills||{};
+  return `<section class="panel stack" style="border-color:var(--yel)"><h2>Akte korrigieren</h2>
+    <p class="muted" style="margin:0;max-width:65ch;font-size:14px">Für Tippfehler bei der Erstellung. Hit Points und Humanity rechnet die App neu. Der DM sieht, was du geändert hast.</p>
+    <form data-form="charfix" class="stack">
+      <div class="row"><div class="field" style="flex:1 1 160px"><label class="label" for="fx-name">Name</label><input id="fx-name" value="${esc(c.name)}"></div>
+      <div class="field" style="flex:1 1 140px"><label class="label" for="fx-handle">Handle</label><input id="fx-handle" value="${esc(c.handle)}"></div>
+      <div class="field" style="flex:1 1 140px"><label class="label" for="fx-role">Role</label><select id="fx-role">${ROLES.map(r=>`<option ${r===c.role?"selected":""}>${r}</option>`).join("")}</select></div></div>
+      <span class="label">Attribute (1–10)</span><div class="fixgrid">${STATS.map(([k,l])=>`<label>${k} · ${l}<input id="fx-${k}" type="number" min="1" max="10" value="${c.stats[k]}"></label>`).join("")}</div>
+      <span class="label">Skills (0–10)</span><div class="fixgrid">${SKILLS.map(([n],i)=>`<label>${esc(n)}<input id="fx-sk-${i}" type="number" min="0" max="10" value="${sk[n]||0}"></label>`).join("")}</div>
+      <div class="row"><button class="btn primary">Korrektur speichern</button><button type="button" class="btn" data-act="fixopen">Abbrechen</button></div>
+    </form></section>`;
 }
 function roleTips(r){const T=ROLETIPS[r];if(!T)return"";return `<div class="tipbox"><div><span class="label">Stärken</span><span>${T.gut}</span></div><div class="bad"><span class="label">Schwächen</span><span>${T.schwach}</span></div><div><span class="label">Deine Aufgabe</span><span>${T.aufgabe}</span></div><div><span class="label">Für Einsteiger</span><span>${T.spiel}</span></div></div>`}
 function newDraft(){const r="Solo";return{step:1,role:r,stats:Object.fromEntries(STATS.map(([k],i)=>[k,ROLEDATA[r].st[i]])),name:"",handle:"",lp:Object.fromEntries(LP.map(([k,,o])=>[k,pickOne(o)]))}}
@@ -1106,6 +1195,13 @@ function renderLog(){
 }
 
 /* --- Crew --- */
+function dmInvHtml(c,id){
+  const ws=c.weapons||[],ar=c.armor||{},cy=c.cyber||[],x=(act,k,l)=>`<button class="btn small" data-act="${act}" data-id="${id}" data-k="${esc(k)}" aria-label="${esc(l)} löschen">✕</button>`;
+  return `<div class="row" style="justify-content:space-between"><h3>Inventar</h3><span class="chip">€$ <b class="mono" style="color:var(--yel)">${c.eddies||0}</b></span></div>${invList(c,id,false)}
+    <h3>Waffen</h3>${ws.length?`<div class="inv">${ws.map(w=>`<div class="item"><span class="n">${esc(w.name)}<small>${esc(w.dmg)}${w.mag?` · ${w.ammo}/${w.mag}`:""} · ${w.slot==="hand"?"in der Hand":w.slot==="pack"?"Rucksack":"griffbereit"}</small></span><span class="acts">${x("dmwdel",w.id,w.name)}</span></div>`).join("")}</div>`:'<div class="muted">–</div>'}
+    <h3>Armor</h3>${["head","body"].some(z=>ar[z]&&ar[z].max)?`<div class="inv">${[["head","Kopf"],["body","Körper"]].filter(([z])=>ar[z]&&ar[z].max).map(([z,l])=>`<div class="item"><span class="n">${esc(ar[z].name||"Armor")}<small>${l} · SP ${ar[z].sp}/${ar[z].max}</small></span><span class="acts">${x("dmadel",z,ar[z].name||"Armor")}</span></div>`).join("")}</div>`:'<div class="muted">–</div>'}
+    <h3>Cyberware</h3>${cy.length?`<div class="inv">${cy.map(v=>`<div class="item"><span class="n">${esc(v.name)}<small>${v.side?v.side+" · ":""}−${v.hl||0} Humanity</small></span><span class="acts">${x("dmcdel",v.id,v.name)}</span></div>`).join("")}</div>`:'<div class="muted">–</div>'}
+    <p class="muted" style="margin:0;font-size:12px">✕ entfernt den Eintrag sofort. Verlorene Humanity kommt dabei nicht zurück.</p>`}
 function viewParty(){
   if(mode==="offline")return offlineNote();
   const list=Object.entries(chars);
@@ -1113,7 +1209,8 @@ function viewParty(){
   ${list.length?`<div class="party">${list.map(([id,c])=>{const hm=c.hpMax||hpMax(c.stats);return`<div class="pc"><div class="row" style="justify-content:space-between"><span class="row" style="gap:10px">${portraitHtml(c,40,false)}<span class="name">${esc(c.handle||c.name)}</span></span>${ownerOf(id)===me?'<span class="chip you">du</span>':""}${id===game.dmId?'<span class="chip dm">DM</span>':""}</div>
   <div class="muted" style="font-size:13px">${esc(c.role)} · gespielt von ${esc(ownerOf(id)===me?"dir":playerName(ownerOf(id)))}</div>
   ${!myChar()&&ownerOf(id)!==me?`<button class="btn small" data-act="claim" data-id="${id}">Das ist meiner (anderes Gerät)</button>`:""}
-  <div class="vital"><div class="top"><span class="label">HP</span><span class="mono">${c.hp}/${hm}</span></div><div class="meter"><i style="width:${clamp(c.hp/hm*100,0,100)}%"></i></div></div></div>`}).join("")}</div>`:`<div class="empty">Noch niemand in der Crew. Wer den Link öffnet und eine Akte anlegt, erscheint hier.</div>`}
+  <div class="vital"><div class="top"><span class="label">HP</span><span class="mono">${c.hp}/${hm}</span></div><div class="meter"><i style="width:${clamp(c.hp/hm*100,0,100)}%"></i></div></div>
+  ${isDM()?`<details><summary class="label" style="cursor:pointer">Inventar ansehen <span class="tag">DM</span></summary><div class="stack" style="margin-top:8px">${dmInvHtml(c,id)}</div></details>`:""}</div>`}).join("")}</div>`:`<div class="empty">Noch niemand in der Crew. Wer den Link öffnet und eine Akte anlegt, erscheint hier.</div>`}
   </section>`;
 }
 
@@ -1206,7 +1303,7 @@ function gearPanel(c){
   const a=c.armor||{},ws=c.weapons||[],others=Object.entries(chars).filter(([k])=>k!==myCid());
   const slot=(z,l)=>{const x=a[z]||{sp:0,max:0};return `<div class="slot" data-drop="${z}"><span class="label">${l}</span>${x.max?`<div class="gitem" data-drag="arm:${z}"><span class="grip" aria-hidden="true">⠿</span><span class="n"><b>${esc(x.name||"Armor")}</b><small>SP ${x.sp}/${x.max}</small></span><span class="acts"><button class="btn small" data-act="sp" data-k="${z}" data-d="-1">−1 SP</button>${x.sp<x.max?`<button class="btn small" data-act="sp" data-k="${z}" data-d="1">+1</button>`:""}</span></div>`:`<div class="slotempty">Armor hierher ziehen</div>`}</div>`};
   const hand=ws.filter(w=>w.slot==="hand"),ready=ws.filter(w=>!w.slot||w.slot==="ready"),pack=ws.filter(w=>w.slot==="pack");
-  return `<section class="panel stack"><div class="row" style="justify-content:space-between"><h2>Ausrüstung</h2><button class="btn small" data-tab="cat">Aus dem Katalog</button></div>
+  return `<section class="panel stack"><div class="row" style="justify-content:space-between"><h2>Ausrüstung</h2><button class="btn small" data-tab="shop">Zum Shop</button></div>
     <p class="muted" style="margin:0;font-size:13px">Zieh Gegenstände in ein anderes Feld oder auf ein Crewmitglied. Am Handy: kurz gedrückt halten, dann ziehen.</p>
     <div class="slots">${slot("head","Kopf")}${slot("body","Körper")}
       <div class="slot" data-drop="hand"><span class="label">In der Hand</span>${hand.map(w=>wCard(c,w)).join("")||'<div class="slotempty">Waffe hierher ziehen</div>'}</div></div>
@@ -2365,7 +2462,8 @@ function drawIsoNow(cv,m){
       if(dm&&(m.spawn||[]).includes(i)){dia(cx,cy,0);x.strokeStyle="#d63031";x.setLineDash([3,3]);x.lineWidth=1.5;x.stroke();x.setLineDash([])}}
     (toks[d]||[]).forEach(({t,fx,fy})=>{const p=P(fx,fy);drawTok(t,p[0],p[1])});
   }
-  if(mact&&mact.kind==="tok"&&mact.moved){const t=tokens[mact.id];if(t)drawTok({...t,id:mact.id},mact.px,mact.py+hh*.2)}
+  if(mact&&mact.kind==="tok"&&mact.moved){const t=tokens[mact.id];if(t){const fx=mact.px+(mact.gx||0),fy=mact.py+(mact.gy||0)+(mact.gx||mact.gy?0:hh*.2),[gx,gy]=s2c(fx,fy),cx=Math.floor(gx),cy=Math.floor(gy);
+    if(cx>=0&&cy>=0&&cx<m.w&&cy<m.h){dia(cx,cy,0);x.strokeStyle="#f5e663";x.lineWidth=2;x.stroke()}drawTok({...t,id:mact.id},fx,fy)}}
   if(m.city&&hw>2){const c=m.city;x.textAlign="center";x.textBaseline="middle";const fs=Math.round(clamp(hw*1.4,10,16));x.font=`700 ${fs}px "IBM Plex Sans",Arial,sans-serif`;
     c.names.forEach((n,k)=>{const p=P(c.cx[k]+.5,c.cy[k]+.5),tw=x.measureText(n).width,y=p[1]-hh*8;x.fillStyle="rgba(15,15,22,.75)";x.fillRect(p[0]-tw/2-6,y-fs*.7,tw+12,fs*1.4);x.fillStyle="#fff";x.fillText(n,p[0],y+1)})}
 }
@@ -2419,6 +2517,10 @@ function drawMapNow(){
 }
 function cellAt(e){const cv=$("#mapCanvas"),r=cv.getBoundingClientRect(),lx=e.clientX-r.left,ly=e.clientY-r.top,[fx,fy]=s2c(lx,ly);return[Math.floor(fx),Math.floor(fy),lx,ly]}
 function tokenAt(m,cx,cy){const dm=isDM()&&!mapView.preview;const vis=dm?null:fogFor(m).vis;return lvTokens(m).reverse().find(t=>t.x===cx&&t.y===cy&&(dm||(!t.hidden&&(t.kind==="pc"||!vis||vis.has(cy*m.w+cx)))))}
+function isoTokAt(m,lx,ly){if(!mapView.iso)return null;const dm=isDM()&&!mapView.preview,vis=dm?null:fogFor(m).vis,[hw]=isoK(),r=Math.max(6,hw*.55),lift=r*1.1;let best=null;
+  lvTokens(m).forEach(t=>{if(!dm&&(t.hidden||(t.kind!=="pc"&&vis&&!vis.has(t.y*m.w+t.x))))return;const [sx,sy]=c2s(t.x+.5,t.y+.5),d=Math.hypot(lx-sx,ly-(sy-lift));
+    if(d<=r*1.3){const dep=t.x+t.y,mine=canMoveTok(t)?1:0;if(!best||mine>best.mine||(mine===best.mine&&(dep>best.dep||(dep===best.dep&&d<best.d))))best={t,dep,d,sx,sy,mine}}});
+  return best}
 function canMoveTok(t){return isDM()||(t.kind==="pc"&&t.ref&&t.ref===myCid())}
 function clearDecoAt(m,cx,cy){const d=decoAt(m,cx,cy);if(d==="A"){if(decoAt(m,cx+1,cy)==="a")setDeco(m,cx+1,cy,".");else if(decoAt(m,cx,cy+1)==="a")setDeco(m,cx,cy+1,".")}if(d==="a"){if(decoAt(m,cx-1,cy)==="A")setDeco(m,cx-1,cy,".");else if(decoAt(m,cx,cy-1)==="A")setDeco(m,cx,cy-1,".")}setDeco(m,cx,cy,".")}
 function paintAt(m,cx,cy){const tool=mapView.tool;if(cx<0||cy<0||cx>=m.w||cy>=m.h)return;
@@ -2574,8 +2676,8 @@ document.addEventListener("pointerdown",e=>{
     if(tool==="room"||tool==="road"||tool==="bridge"){mact={kind:tool==="room"?"rect":tool,a:[cx,cy],b:[cx,cy]};drawMap();return}
     if(tool==="spawn"){if(cx>=0&&cy>=0&&cx<m.w&&cy<m.h){const i=cy*m.w+cx,k=em.spawn.indexOf(i);k>=0?em.spawn.splice(k,1):em.spawn.push(i);drawMap();saveMapSoon()}mact=null;return}
     mact={kind:"paint",last:cy*m.w+cx};paintAt(em,cx,cy);return}
-  const t=tokenAt(m,cx,cy);
-  if(t&&canMoveTok(t)){mact={kind:"tok",id:t.id,sx:lx,sy:ly,px:lx,py:ly,moved:false,cx,cy};return}
+  let t=tokenAt(m,cx,cy),gx=0,gy=0;const it=isoTokAt(m,lx,ly);if(it&&(!t||!canMoveTok(t)||it.mine)){t=it.t;gx=it.sx-lx;gy=it.sy-ly}
+  if(t&&canMoveTok(t)){mact={kind:"tok",id:t.id,sx:lx,sy:ly,px:lx,py:ly,gx,gy,moved:false,cx:t.x,cy:t.y};return}
   mact={kind:"pan",sx:e.clientX,sy:e.clientY,ox:mapView.ox,oy:mapView.oy,moved:false,cx,cy,tok:t&&t.id};
   if(e.pointerType!=="mouse"){const a0=mact,ev={clientX:e.clientX,clientY:e.clientY};setTimeout(()=>{if(mact===a0&&!a0.moved&&mptr.size===1){if(navigator.vibrate)try{navigator.vibrate(15)}catch(er){}ptrStart(ev)}},450)}
 });
@@ -2588,7 +2690,7 @@ document.addEventListener("pointermove",e=>{
   if(mact.kind==="ptr"){const q=ptrAt(e);if(q){ptrFeed("me",q);ptrSend(q)}return}
   const [cx,cy,lx,ly]=cellAt(e);
   if(mact.kind==="pan"){const dx=e.clientX-mact.sx,dy=e.clientY-mact.sy;if(Math.hypot(dx,dy)>4)mact.moved=true;mapView.ox=mact.ox+dx;mapView.oy=mact.oy+dy;drawMap()}
-  else if(mact.kind==="tok"){mact.px=lx;mact.py=ly;if(Math.hypot(lx-mact.sx,ly-mact.sy)>5)mact.moved=true;if(mact.moved){const [fx,fy]=s2c(lx,ly);liveSend({id:mact.id,map:m.id,x:fx,y:fy})}drawMap()}
+  else if(mact.kind==="tok"){mact.px=lx;mact.py=ly;if(Math.hypot(lx-mact.sx,ly-mact.sy)>5)mact.moved=true;if(mact.moved){const [fx,fy]=s2c(lx+(mact.gx||0),ly+(mact.gy||0));liveSend({id:mact.id,map:m.id,x:fx,y:fy})}drawMap()}
   else if(mact.kind==="paint"){const i=cy*m.w+cx;if(i!==mact.last){mact.last=i;paintAt(editMap(),cx,cy)}}
   else if(mact.kind==="rect"||mact.kind==="road"||mact.kind==="bridge"){mact.b=[cx,cy];drawMap()}
 });
@@ -2597,7 +2699,8 @@ function mapPointerEnd(e){
   if(!mptr.has(e.pointerId))return;mptr.delete(e.pointerId);const a=mact;if(!a)return;
   if(a.kind==="pinch"){if(mptr.size===0)mact=null;return}
   if(a.kind==="ptr"){mact=null;clearInterval(ptrBeat);ptrEnd("me");ptrSend(null);return}
-  mact=null;const m=curMap();if(!m)return;const [cx,cy]=cellAt(e);
+  mact=null;const m=curMap();if(!m)return;let [cx,cy,elx,ely]=cellAt(e);
+  if(a.kind==="tok"&&(a.gx||a.gy)){const [fx,fy]=s2c(elx+a.gx,ely+a.gy);cx=Math.floor(fx);cy=Math.floor(fy)}
   if(a.kind==="tok"){if(a.moved)liveSend(null);if(a.moved&&(cx!==a.cx||cy!==a.cy))moveTok({...tokens[a.id],id:a.id},cx,cy,m);else{if(!tapDoor(m,cx,cy)&&isDM()){mapView.sel=a.id;$("#mapSide").innerHTML=mapSideHtml()}drawMap()}}
   else if(a.kind==="pan"&&!a.moved&&isDM()&&!mapView.preview&&maps[m.id]&&(maps[m.id].kind==="city"||maps[m.id].kind==="district")&&lastTap.id===m.id&&lastTap.cx===a.cx&&lastTap.cy===a.cy&&Date.now()-lastTap.t<400){lastTap={};openChild(m,a.cx,a.cy)}
   else if(a.kind==="pan"&&!a.moved){lastTap={id:m.id,cx:a.cx,cy:a.cy,t:Date.now()};if(!tapDoor(m,a.cx,a.cy)&&isDM()){mapView.sel=a.tok||null;$("#mapSide").innerHTML=mapSideHtml()}drawMap()}
@@ -2613,11 +2716,58 @@ document.addEventListener("wheel",e=>{const cv=e.target.closest&&e.target.closes
 window.addEventListener("resize",()=>drawMap());
 
 
+/* --- Handel zwischen Spielern --- */
+let tradeSeen=null;
+function tradeNotify(){const mine=Object.entries(trades).filter(([,t])=>t.status==="open"&&t.to===myCid()).map(([k])=>k);
+  if(tradeSeen){const nu=mine.find(k=>!tradeSeen.has(k));if(nu){const t=trades[nu];SFX.pick();toast(`Handelsangebot von ${tName(t.from)}. Schau unter Charakter.`)}}tradeSeen=new Set(mine)}
+const tName=cid=>{const c=chars[cid]||allChars[cid];return c?(c.handle||c.name):"?"};
+function tradeDesc(t){const p=[];if(t.item)p.push(`${t.item.qty>1?t.item.qty+"× ":""}${esc(t.item.name)}`);if(t.give)p.push(`${t.give} €$`);return p.join(" + ")||"nichts"}
+function tradeOpts(c){return (c.inventory||[]).map(x=>`<option value="i:${x.id}">${esc(x.name)} (${x.qty}×)</option>`).join("")+(c.weapons||[]).map(w=>`<option value="w:${w.id}">${esc(w.name)} · Waffe</option>`).join("")}
+function tradePanel(c){
+  const cid=myCid(),others=Object.entries(chars).filter(([k])=>k!==cid);if(!others.length)return "";
+  const all=Object.entries(trades).sort((a,b)=>b[1].at-a[1].at),inc=all.filter(([,t])=>t.to===cid&&t.status==="open"),out=all.filter(([,t])=>t.from===cid&&t.status==="open"),done=all.filter(([,t])=>(t.from===cid||t.to===cid)&&t.status==="done"&&Date.now()-t.at<864e5).slice(0,3);
+  return `<section class="panel stack" ${inc.length?'style="border-color:var(--mag)"':""}><h2>Handel <span class="tag">${inc.length?inc.length+" ANGEBOT"+(inc.length>1?"E":""):"SPIELER ↔ SPIELER"}</span></h2>
+    ${inc.length?`<div class="inv">${inc.map(([k,t])=>`<div class="item cat"><span class="n"><b>${esc(tName(t.from))} bietet ${tradeDesc(t)}</b><small>${t.ask?`und will dafür ${t.ask} €$`:"geschenkt"}${t.msg?" · „"+esc(t.msg)+"“":""}</small></span><span class="acts"><button class="btn small primary" data-act="tradeok" data-id="${k}" ${(c.eddies||0)<(t.ask||0)?`disabled title="Zu wenig Eddies"`:""}>Annehmen</button><button class="btn small" data-act="tradeno" data-id="${k}">Ablehnen</button></span></div>`).join("")}</div>`:""}
+    ${out.length?`<span class="label">Deine offenen Angebote</span><div class="inv">${out.map(([k,t])=>`<div class="item cat"><span class="n"><b>${tradeDesc(t)} → ${esc(tName(t.to))}</b><small>${t.ask?`für ${t.ask} €$`:"geschenkt"} · wartet auf Antwort</small></span><span class="acts"><button class="btn small" data-act="tradecancel" data-id="${k}">Zurückziehen</button></span></div>`).join("")}</div>`:""}
+    ${done.length?`<div class="muted" style="font-size:13px">${done.map(([,t])=>`✓ ${tradeDesc(t)}: ${esc(tName(t.from))} → ${esc(tName(t.to))}${t.ask?` für ${t.ask} €$`:""}`).join("<br>")}</div>`:""}
+    <details ${inc.length||out.length?"":"open"}><summary class="label" style="cursor:pointer">Neues Angebot</summary>
+    <form data-form="tradenew" class="row" style="align-items:end;margin-top:8px">
+      <div class="field" style="flex:1 1 140px"><label class="label" for="tr-to">An</label><select id="tr-to">${others.map(([k,o])=>`<option value="${k}">${esc(o.handle||o.name)}</option>`).join("")}</select></div>
+      <div class="field" style="flex:2 1 180px"><label class="label" for="tr-it">Gegenstand</label><select id="tr-it"><option value="">Kein Gegenstand, nur Eddies</option>${tradeOpts(c)}</select></div>
+      <div class="field" style="flex:0 0 70px"><label class="label" for="tr-q">Anz.</label><input id="tr-q" type="number" min="1" value="1"></div>
+      <div class="field" style="flex:0 0 100px"><label class="label" for="tr-g">Du gibst €$</label><input id="tr-g" type="number" min="0" value="0"></div>
+      <div class="field" style="flex:0 0 100px"><label class="label" for="tr-a">Du willst €$</label><input id="tr-a" type="number" min="0" value="0"></div>
+      <div class="field" style="flex:2 1 160px"><label class="label" for="tr-m">Nachricht</label><input id="tr-m" maxlength="120" placeholder="optional"></div>
+      <button class="btn primary">Anbieten</button></form>
+    <p class="muted" style="margin:6px 0 0;font-size:13px">Der Gegenstand bleibt bei dir, bis die andere Person annimmt. Erst dann wechseln Ware und Eddies gleichzeitig den Besitzer.</p></details>
+  </section>`;
+}
+async function acceptTrade(id){
+  const t=trades[id],c=myChar();if(!t||t.status!=="open"||t.to!==myCid()||!c)return;
+  if((c.eddies||0)<(t.ask||0)){toast(`Zu wenig Eddies: ${t.ask} €$ verlangt.`);return}
+  let claimed=false;await write("trades/"+id,x=>{if(!x||x.status!=="open")return null;claimed=true;return {...x,status:"busy"}});
+  if(!claimed){toast("Das Angebot ist nicht mehr offen.");return}
+  let moved=null;
+  await editChar(t.from,f=>{if((f.eddies||0)<(t.give||0))return;let it={kind:"none"};
+    if(t.item){if(t.item.kind==="w"){const w=(f.weapons||[]).find(x=>x.id===t.item.ref);if(!w)return;f.weapons=f.weapons.filter(x=>x!==w);it={kind:"w",w:{...w,slot:"pack"}}}
+      else{const x=(f.inventory||[]).find(v=>v.id===t.item.ref)||(f.inventory||[]).find(v=>v.name===t.item.name);if(!x||x.qty<t.item.qty)return;x.qty-=t.item.qty;if(x.qty<=0)f.inventory=f.inventory.filter(v=>v!==x);it={kind:"i",x:{name:x.name,qty:t.item.qty,note:x.note||"",entry:x.entry||null}}}}
+    f.eddies=(f.eddies||0)-(t.give||0)+(t.ask||0);moved=it});
+  if(!moved){await write("trades/"+id,x=>x?{...x,status:"failed"}:null);toast(`${tName(t.from)} hat den Gegenstand oder die Eddies nicht mehr. Handel abgebrochen.`);return}
+  await editChar(t.to,c=>{if(moved.kind==="w"){c.weapons=c.weapons||[];c.weapons.push(moved.w)}else if(moved.kind==="i")addItem(c,moved.x);c.eddies=(c.eddies||0)+(t.give||0)-(t.ask||0)});
+  await write("trades/"+id,x=>x?{...x,status:"done",at:Date.now()}:null);SFX.coin();toast(`Handel abgeschlossen: ${tradeDesc(t).replace(/<[^>]+>/g,"")}.`);
+}
+
 /* --- Geheimnachrichten DM → Spieler --- */
 let myWhispers=[],dmWhispers={},whSubs={},whSeen="",wh={to:"",kind:"note",items:[],q:"",open:false};
 function subMyWhispers(){if(!db||!me||whSubs.__me)return;whSubs.__me=db.collection("whispers/"+me+"/items").onSnapshot(s=>{myWhispers=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.at-a.at);const nu=myWhispers.find(w=>!w.read);if(nu&&nu.id!==whSeen){whSeen=nu.id;SFX.pick()}renderSoon()},()=>{})}
 function subDmWhispers(){if(!isDM()||!db)return;const owners=[...new Set(Object.entries(chars).map(([id,c])=>c.owner||id))];
-  owners.forEach(o=>{if(whSubs[o])return;whSubs[o]=db.collection("whispers/"+o+"/items").onSnapshot(s=>{dmWhispers[o]=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.at-a.at);renderSoon()},()=>{})})}
+  owners.forEach(o=>{if(whSubs[o])return;whSubs[o]=db.collection("whispers/"+o+"/items").onSnapshot(s=>{dmWhispers[o]=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.at-a.at);
+    const n=dmReplyCount();if(n>dmRepSeen){const w=Object.values(dmWhispers).flat().find(x=>x.dmNew);if(w&&dmRepSeen>=0){SFX.pick();toast(`Antwort von ${w.charName||"Spieler"}: ${lastReply(w).slice(0,60)}`)}}dmRepSeen=n;renderSoon()},()=>{})})}
+let dmRepSeen=-1;
+function dmReplyCount(){return Object.values(dmWhispers).flat().filter(w=>w.dmNew).length}
+function lastReply(w){const r=(w.replies||[]).filter(x=>x.by==="p");return r.length?r[r.length-1].t:""}
+function whThread(w){const r=w.replies||[];if(!r.length)return "";return `<div class="wthread">${r.map(x=>`<div class="wm ${x.by==="p"?"p":""}"><small>${x.by==="p"?esc(w.charName||"Spieler"):"DM"} · ${new Date(x.at).toLocaleTimeString("de-CH",{hour:"2-digit",minute:"2-digit"})}</small>${esc(x.t)}</div>`).join("")}</div>`}
+function dmReplyBox(o,w){return `<div class="wreply"><input id="whd-${w.id}" placeholder="Antwort an ${esc(w.charName||"Spieler")}…" maxlength="600"><button class="btn small primary" data-act="whdmreply" data-o="${esc(o)}" data-id="${w.id}">Senden</button>${w.dmNew?`<button class="btn small" data-act="whseen" data-o="${esc(o)}" data-id="${w.id}">Gelesen</button>`:""}</div>`}
 async function sendWhisper(cid,data){const c=chars[cid];if(!c)return false;const to=c.owner||cid,id=uid();
   try{await db.doc(`whispers/${to}/items/${id}`).set({char:cid,charName:c.handle||c.name,from:me,at:Date.now(),read:false,taken:false,...data});return true}catch(e){toast(errMsg(e));return false}}
 function whLine(x){return x.cat==="E"?`${x.amount} €$`:x.name}
@@ -2625,7 +2775,9 @@ function whisperPanel(){
   const list=Object.entries(chars);if(!list.length)return `<section class="panel stack"><h2>Geheimnachricht <span class="tag">NUR FÜR EINEN</span></h2><div class="empty">Sobald Charaktere in der Crew sind, kannst du ihnen geheim schreiben.</div></section>`;
   if(!wh.to||!chars[wh.to])wh.to=list[0][0];const to=chars[wh.to],owner=to.owner||wh.to,sent=(dmWhispers[owner]||[]).filter(w=>w.char===wh.to).slice(0,5);
   const q=wh.q.trim().toLowerCase(),hits=q?allCatalog().filter(e=>e.name.toLowerCase().includes(q)).slice(0,6):[];
-  return `<section class="panel stack"><h2>Geheimnachricht <span class="tag">NUR FÜR EINEN</span></h2>
+  const news=Object.entries(dmWhispers).flatMap(([o,ws])=>ws.filter(w=>w.dmNew).map(w=>[o,w]));
+  return `${news.length?`<section class="panel stack" style="border-color:var(--mag)"><h2>Neue Antworten <span class="tag">${news.length}</span></h2>${news.map(([o,w])=>`<div class="item cat" style="display:block"><b>${esc(w.charName||"")}</b> <span class="muted">zu „${esc(w.title||(w.kind==="loot"?"Loot":"Notiz"))}“</span>${w.body?`<div class="muted" style="font-size:13px;white-space:pre-wrap">${esc(w.body.slice(0,200))}</div>`:""}${whThread(w)}${dmReplyBox(o,w)}</div>`).join("")}</section>`:""}
+  <section class="panel stack"><h2>Geheimnachricht <span class="tag">NUR FÜR EINEN</span></h2>
     <span class="label">An</span><div class="chips">${list.map(([id,c])=>`<button class="pick" data-act="whto" data-id="${id}" aria-pressed="${wh.to===id}">${portraitHtml(c,28,false)}<b>${esc(c.handle||c.name)}</b></button>`).join("")}</div>
     <div class="seg"><button data-act="whkind" data-k="note" aria-pressed="${wh.kind==="note"}">Notiz</button><button data-act="whkind" data-k="loot" aria-pressed="${wh.kind==="loot"}">Loot</button></div>
     <div class="field"><label class="label" for="wh-title">Betreff</label><input id="wh-title" placeholder="${wh.kind==="note"?"Du erkennst den Mann im Anzug…":"Was du in der Jackentasche findest"}"></div>
@@ -2635,19 +2787,21 @@ function whisperPanel(){
       <div class="chips" id="whHits">${hits.map(e=>`<button class="pick" data-act="whadd" data-id="${e.id}"><b style="font-size:13px">+ ${esc(e.name)}</b><small>${e.price} €$</small></button>`).join("")}</div>
       ${wh.items.length?`<div class="chips">${wh.items.map((x,i)=>`<button class="pick" data-act="whrm" data-i="${i}" title="Entfernen"><b style="font-size:13px">${esc(x.name)} ✕</b></button>`).join("")}</div>`:`<div class="muted" style="font-size:13px">Noch nichts ausgewählt. Suche oben, oder würfle im Loot-Generator und schick die Beute mit „Geheim an …“.</div>`}`:""}
     <div class="row"><button class="btn primary" data-act="whsend">Geheim an ${esc(to.handle||to.name)} senden</button></div>
-    ${sent.length?`<span class="label">Zuletzt an ${esc(to.handle||to.name)}</span><div class="inv">${sent.map(w=>`<div class="item cat"><span class="n"><b>${esc(w.title||(w.kind==="loot"?"Loot":"Notiz"))}</b><small>${w.kind==="loot"?(w.items||[]).map(whLine).join(", "):esc((w.body||"").slice(0,80))}</small></span><span class="mono" style="font-size:12px;color:${w.taken?"var(--ok)":w.read?"var(--cyan)":"var(--muted)"}">${w.kind==="loot"?(w.taken?"angenommen":w.read?"gesehen":"neu"):(w.read?"gelesen":"neu")}</span></div>`).join("")}</div>`:""}
-    <p class="muted" style="margin:0;font-size:13px">Nur der gewählte Spieler bekommt ein Fenster. Die anderen sehen weder die Nachricht noch die Beute.</p>
+    ${sent.length?`<span class="label">Zuletzt an ${esc(to.handle||to.name)}</span><div class="inv">${sent.map(w=>`<div class="item cat"><span class="n"><b>${esc(w.title||(w.kind==="loot"?"Loot":"Notiz"))}</b><small>${w.kind==="loot"?(w.items||[]).map(whLine).join(", "):esc((w.body||"").slice(0,80))}</small>${(w.replies||[]).length?`<details><summary class="muted" style="cursor:pointer;font-size:13px">${w.replies.length} ${w.replies.length===1?"Antwort":"Antworten"}${w.dmNew?" · neu":""}</summary>${whThread(w)}${dmReplyBox(owner,w)}</details>`:""}</span><span class="mono" style="font-size:12px;color:${w.taken?"var(--ok)":w.read?"var(--cyan)":"var(--muted)"}">${w.kind==="loot"?(w.taken?"angenommen":w.read?"gesehen":"neu"):(w.read?"gelesen":"neu")}</span></div>`).join("")}</div>`:""}
+    <p class="muted" style="margin:0;font-size:13px">Nur der gewählte Spieler bekommt ein Fenster. Die anderen sehen weder die Nachricht noch die Beute. Spieler können auf deine Nachrichten antworten, aber selbst keine neuen beginnen.</p>
   </section>`;
 }
 function inboxPanel(){const list=myWhispers.filter(w=>w.char===myCid()||!chars[w.char]).slice(0,8);if(!list.length)return "";
-  return `<section class="panel stack" style="border-color:var(--mag)"><h2>Vom DM <span class="tag">NUR FÜR DICH</span></h2><div class="inv">${list.map(w=>`<div class="item cat"><span class="n"><b>${esc(w.title||(w.kind==="loot"?"Fundstück":"Notiz"))}</b><small>${w.kind==="loot"?(w.items||[]).map(whLine).join(", "):""}</small>${w.body?`<div style="white-space:pre-wrap;margin-top:4px">${esc(w.body)}</div>`:""}</span><span class="acts">${w.kind==="loot"&&!w.taken?`<button class="btn small primary" data-act="whtake" data-id="${w.id}">Annehmen</button>`:w.kind==="loot"?'<span class="mono" style="color:var(--ok);font-size:12px">angenommen</span>':""}</span></div>`).join("")}</div></section>`}
+  return `<section class="panel stack" style="border-color:var(--mag)"><h2>Vom DM <span class="tag">NUR FÜR DICH</span></h2><div class="inv">${list.map(w=>`<div class="item cat"><span class="n"><b>${esc(w.title||(w.kind==="loot"?"Fundstück":"Notiz"))}</b><small>${w.kind==="loot"?(w.items||[]).map(whLine).join(", "):""}</small>${w.body?`<div style="white-space:pre-wrap;margin-top:4px">${esc(w.body)}</div>`:""}${whThread(w)}<div class="wreply"><input id="whr-${w.id}" placeholder="Dem DM antworten…" maxlength="600"><button class="btn small" data-act="whreply" data-id="${w.id}">Antworten</button></div></span><span class="acts">${w.kind==="loot"&&!w.taken?`<button class="btn small primary" data-act="whtake" data-id="${w.id}">Annehmen</button>`:w.kind==="loot"?'<span class="mono" style="color:var(--ok);font-size:12px">angenommen</span>':""}</span></div>`).join("")}</div></section>`}
 function renderWhisperModal(){
   let el=$("#whModal");const w=mode==="online"?myWhispers.find(x=>!x.read):null;
   if(!w){if(el)el.hidden=true;return}
-  if(!el){el=document.createElement("div");el.id="whModal";document.body.appendChild(el)}el.hidden=false;
+  if(!el){el=document.createElement("div");el.id="whModal";document.body.appendChild(el)}
+  const key=w.id+":"+(w.replies||[]).length;if(!el.hidden&&el.dataset.k===key)return;el.dataset.k=key;el.hidden=false;
   el.innerHTML=`<div class="wh-in" role="dialog" aria-label="Geheime Nachricht"><span class="label" style="color:var(--mag)">Geheim · nur für dich</span><h2 style="font-size:22px">${esc(w.title||(w.kind==="loot"?"Du findest etwas":"Nachricht vom DM"))}</h2>
     ${w.body?`<p style="margin:0;white-space:pre-wrap;max-width:60ch">${esc(w.body)}</p>`:""}
     ${w.kind==="loot"?`<div class="inv">${(w.items||[]).map(x=>`<div class="item cat"><span class="n"><b>${esc(whLine(x))}</b><small>${esc(x.cat==="E"?"Bargeld":lootLine(x))}</small></span></div>`).join("")}</div>`:""}
+    ${whThread(w)}<div class="wreply"><textarea id="whm-${w.id}" rows="2" placeholder="Antworten (optional)" maxlength="600"></textarea><button class="btn" data-act="whreply" data-id="${w.id}" data-m="1">Antworten</button></div>
     <div class="row" style="justify-content:flex-end">${w.kind==="loot"?`<button class="btn" data-act="whlater" data-id="${w.id}">Später</button><button class="btn primary" data-act="whtake" data-id="${w.id}">Annehmen</button>`:`<button class="btn primary" data-act="whread" data-id="${w.id}">Verstanden</button>`}</div></div>`;
 }
 
@@ -2655,12 +2809,16 @@ function renderWhisperModal(){
 function viewClaimDM(){
   if(mode==="offline")return offlineNote();
   return `<section class="panel stack"><h2>Spielleitung</h2>
-  ${game.dmId?`<p>Die Spielleitung hat <b>${esc(playerName(game.dmId))}</b>. Nur der DM sieht alle Stats und Inventare.</p><div><button class="btn small" data-act="takedm">DM-Role übernehmen</button></div>`:`<p>Noch kein DM. Wer die Runde leitet, übernimmt hier die Role und sieht danach alle Stats, Hit Points und Inventare.</p><div><button class="btn primary" data-act="takedm">Ich bin der DM</button></div>`}</section>`;
+  ${game.dmId?`<p>Die Spielleitung hat <b>${esc(playerName(game.dmId))}</b>. Nur der DM sieht alle Stats und Inventare.</p><p class="muted" style="margin:0;font-size:13px">Die Rolle gehört dem, der den Raum eröffnet hat. Nur der DM selbst kann sie an jemand anderen übergeben.</p>`:`<p>Noch kein DM. Wer die Runde leitet, übernimmt hier die Role und sieht danach alle Stats, Hit Points und Inventare.</p><div><button class="btn primary" data-act="takedm">Ich bin der DM</button></div>`}</section>`;
 }
+function roomPlayers(){return [...new Set(Object.values(allChars).map(c=>c.owner).filter(Boolean).concat(Object.keys(names)))].filter(x=>x&&x!==me)}
+function dmPassHtml(){const ps=roomPlayers();if(!ps.length)return "";
+  return `<details><summary class="label" style="cursor:pointer">DM-Rolle übergeben</summary><div class="row" style="align-items:end;margin-top:8px"><div class="field" style="flex:1 1 180px"><label class="label" for="dm-pass">An</label><select id="dm-pass">${ps.map(p=>`<option value="${esc(p)}">${esc(playerName(p))}</option>`).join("")}</select></div><button class="btn small mag" data-act="dmpass">Übergeben</button></div><p class="muted" style="margin:6px 0 0;font-size:13px">Danach hast du keinen DM-Zugriff mehr. Zurück geht es nur, wenn der neue DM dir die Rolle wieder gibt.</p></details>`}
 function viewDM(){
   const list=Object.entries(chars);
   const opts=list.map(([id,c])=>`<option value="${id}">${esc(c.handle||c.name)}</option>`).join("");
-  return `<section class="panel hot stack"><div class="row" style="justify-content:space-between"><h2>DM-Konsole <span class="tag">VOLLZUGRIFF</span></h2><div class="row"><button class="btn small" data-tab="rules">DM-Regeln</button><button class="btn small" data-act="dropdm">DM-Role abgeben</button></div></div>
+  return `<section class="panel hot stack"><div class="row" style="justify-content:space-between"><h2>DM-Konsole <span class="tag">VOLLZUGRIFF</span></h2><div class="row"><button class="btn small" data-tab="rules">DM-Regeln</button></div></div>
+    ${dmPassHtml()}
     ${list.length?`<form class="row" data-form="dmgive" style="align-items:end">
       <div class="field" style="flex:1 1 140px"><label class="label" for="g-to">An</label><select id="g-to">${opts}</select></div>
       <div class="field" style="flex:2 1 180px"><label class="label" for="g-n">Gegenstand</label><input id="g-n" required placeholder="Arasaka-Datenchip"></div>
@@ -2682,9 +2840,9 @@ function viewDM(){
     <div class="row" style="justify-content:space-between"><div><span class="label">${esc(c.role)} · ${esc(ownerOf(id)===me?"du":playerName(ownerOf(id)))}</span><h2 style="font-size:22px">${esc(c.handle||c.name)}</h2><div class="muted">${esc(c.name)}</div></div><div class="row"><span class="chip">${c.ip||0} IP</span><span class="chip">Rang ${c.roleRank||4}</span><span class="chip">Reputation ${c.rep||0} <button class="pinbtn" style="color:var(--fg)" data-act="rep" data-id="${id}" data-d="-1" aria-label="Reputation senken">−</button><button class="pinbtn" style="color:var(--fg)" data-act="rep" data-id="${id}" data-d="1" aria-label="Reputation erhöhen">+</button></span><span class="chip">€$ <b class="mono" style="color:var(--yel)">${c.eddies}</b></span></div></div>
     ${statsGrid(c.stats,id)}
     ${vitals(c,id,true)}
-    <div class="grid2"><div class="stack"><h3>Inventar</h3>${invList(c,id,false)}</div>
-    <div class="stack"><h3>Waffen</h3><div class="muted">${(c.weapons||[]).map(w=>esc(w.name)+" ("+esc(w.dmg)+(w.mag?", "+w.ammo+"/"+w.mag:"")+")").join("<br>")||"–"}</div>
-    <h3>Armor</h3><div class="muted mono">Kopf ${(c.armor&&c.armor.head||{sp:0}).sp} SP · Körper ${(c.armor&&c.armor.body||{sp:0}).sp} SP</div>
+    ${(c.fixLog||[]).length?`<div class="muted" style="font-size:13px;border-left:3px solid var(--yel);padding-left:8px"><b>Selbst korrigiert:</b> ${(c.fixLog||[]).slice(0,3).map(x=>`${new Date(x.at).toLocaleDateString("de-CH")}: ${esc(x.t)}`).join("<br>")}</div>`:""}
+    <div class="grid2"><div class="stack">${dmInvHtml(c,id)}</div>
+    <div class="stack">
     <h3>Skills</h3><div class="muted">${Object.entries(c.skills||{}).filter(([,v])=>v>0).map(([n,v])=>{const st=(SKILLS.find(s=>s[0]===n)||[0,"INT"])[1];return esc(n)+" "+v+" (Basis "+(c.stats[st]+v)+")"}).join(" · ")||"–"}</div>
     <h3>Cyberware</h3><div class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere">${[(c.cyber||[]).map(x=>esc(x.name)).join(", "),esc(c.cyberware)].filter(Boolean).join("\n")||"–"}</div><h3>Notizen</h3><div class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(c.notes)||"–"}</div></div></div>
     <div class="row"><button class="btn small mag" data-act="delchar" data-id="${id}">Akte löschen</button></div>
@@ -2748,6 +2906,7 @@ document.addEventListener("click",async e=>{
   const a=b.dataset.act,d=+b.dataset.d||0,id=b.dataset.id;
   if(a==="dstat"){draft.stats[b.dataset.k]=clamp(draft.stats[b.dataset.k]+d,SMIN,SMAX);render()}
   else if(a==="portpick"){const f=$("#portraitFile");f.value="";f.click()}
+  else if(a==="fixopen"){charFix=!charFix;render()}
   else if(a==="portdel"){editChar(myCid(),c=>{delete c.portrait});toast("Bild entfernt.")}
   else if(a==="wins"){const n=+b.dataset.d;if(n<=1){if(panes.length>1)tab=panes[activePane];panes=[]}else{let cur=panes.length>1?panes.slice():[tab];const pref=[tab,"map","char","dice","dm","party","cat","camp","rules"];
       while(cur.length<n){const nx=pref.find(k=>!cur.includes(k));cur.push(nx)}panes=cur.slice(0,n);if(activePane>=n)activePane=0}
@@ -2764,6 +2923,15 @@ document.addEventListener("click",async e=>{
     if(await sendWhisper(wh.to,{kind:wh.kind,title:title.trim(),body:body.trim(),items})){wh.items=[];wh.q="";["#wh-title","#wh-body"].forEach(q=>{const f=$(q);if(f)f.value=""});SFX.pick();toast(`Geheim an ${chars[wh.to].handle||chars[wh.to].name} gesendet.`);render()}}
   else if(a==="lootwh"){if(!lootDraft.length)return;const list=lootDraft.slice(),title=(LOOTCTX.find(x=>x[0]===lootCfg.ctx)||["","Fundstück"])[1];
     if(await sendWhisper(id,{kind:"loot",title,body:"",items:list.map(x=>({cat:x.cat,name:x.name,price:x.price||0,amount:x.amount||0,entry:x.entry||null}))})){lootDraft=[];SFX.pick();toast(`Beute geheim an ${chars[id].handle||chars[id].name} geschickt.`);render()}}
+  else if(a==="whreply"){const w=myWhispers.find(x=>x.id===id),inp=$(b.dataset.m?"#whm-"+id:"#whr-"+id),t=inp&&inp.value.trim();if(!w||!t){if(inp)inp.focus();return}
+    const nw={...w,replies:[...(w.replies||[]),{by:"p",t:t.slice(0,600),at:Date.now()}],read:true,dmNew:true};Object.assign(w,nw);inp.value="";
+    try{await db.doc(`whispers/${me}/items/${id}`).set(nw);SFX.click();toast("Antwort an den DM gesendet.")}catch(er){toast(errMsg(er))}renderWhisperModal();render()}
+  else if(a==="whdmreply"||a==="whseen"){if(!isDM())return;const o=b.dataset.o,w=(dmWhispers[o]||[]).find(x=>x.id===id);if(!w)return;
+    let nw={...w,dmNew:false};if(a==="whdmreply"){const inp=$("#whd-"+id),t=inp&&inp.value.trim();if(!t){if(inp)inp.focus();return}nw.replies=[...(w.replies||[]),{by:"dm",t:t.slice(0,600),at:Date.now()}];nw.read=false;inp.value=""}
+    delete nw.id;try{await db.doc(`whispers/${o}/items/${id}`).set(nw);if(a==="whdmreply")toast("Antwort gesendet.")}catch(er){toast(errMsg(er))}}
+  else if(a==="tradeok")acceptTrade(id);
+  else if(a==="tradeno"||a==="tradecancel"){const t=trades[id];if(!t||t.status!=="open")return;if(a==="tradeno"&&t.to!==myCid())return;if(a==="tradecancel"&&t.from!==myCid())return;
+    try{await db.doc("trades/"+id).delete();toast(a==="tradeno"?"Angebot abgelehnt.":"Angebot zurückgezogen.")}catch(er){toast(errMsg(er))}}
   else if(a==="whread"||a==="whlater"){const w=myWhispers.find(x=>x.id===id);if(w){w.read=true;renderWhisperModal();db.doc(`whispers/${me}/items/${id}`).set({...w,read:true}).catch(e=>toast(errMsg(e)))}}
   else if(a==="whtake"){const w=myWhispers.find(x=>x.id===id);if(!w||w.taken||!myCid())return;w.taken=true;w.read=true;renderWhisperModal();
     try{await db.doc(`whispers/${me}/items/${id}`).set({...w,taken:true,read:true});
@@ -2801,6 +2969,8 @@ document.addEventListener("click",async e=>{
   else if(a==="hp")editChar(id,c=>{c.hp=clamp(c.hp+d,0,c.hpMax||hpMax(c.stats))});
   else if(a==="hum")editChar(id,c=>{c.hum=clamp(c.hum+d,0,c.humMax||humMax(c.stats))});
   else if(a==="dmstat")editChar(id,c=>{c.stats[b.dataset.k]=clamp((c.stats[b.dataset.k]||0)+d,1,10);c.hpMax=hpMax(c.stats);c.humMax=humMax(c.stats);c.hp=Math.min(c.hp,c.hpMax);c.hum=Math.min(c.hum,c.humMax)});
+  else if(a==="dmwdel"||a==="dmadel"||a==="dmcdel"){if(!isDM())return;const k=b.dataset.k;
+    editChar(id,c=>{if(a==="dmwdel")c.weapons=(c.weapons||[]).filter(w=>w.id!==k);else if(a==="dmadel"){c.armor=c.armor||{};c.armor[k]={sp:0,max:0}}else{c.cyber=(c.cyber||[]).filter(v=>v.id!==k&&v.parent!==k)}}).then(()=>toast("Entfernt."))}
   else if(a==="invdel"){const i=+b.dataset.i;editChar(id,c=>{c.inventory.splice(i,1)});giveOpen=null}
   else if(a==="giveopen"){giveOpen=giveOpen===+b.dataset.i?null:+b.dataset.i;render()}
   else if(a==="give"){
@@ -2955,6 +3125,21 @@ document.addEventListener("click",async e=>{
     }catch(e){toast(errMsg(e))}
     delete lootBusy[id];renderLoot();
   }
+  else if(a==="shopadd"){if(!isDM())return;const e=allCatalog().find(x=>x.id===id);if(!e)return;await write("shop/main",sh=>{sh=sh||{items:[]};sh.items=sh.items||[];if(sh.items.some(x=>x.eid===e.id))return null;sh.items.push(shopItem(e,e.price,-1));return sh});toast(`${e.name} ist im Shop.`)}
+  else if(a==="shoprm"){if(isDM())write("shop/main",sh=>{if(!sh)return null;sh.items=(sh.items||[]).filter(x=>x.sid!==id);return sh})}
+  else if(a==="shopclear"){if(!isDM())return;if(delArm!=="shopclear"){delArm="shopclear";b.textContent="Sicher? Nochmal tippen";setTimeout(()=>{if(delArm==="shopclear"){delArm=null;render()}},4000);return}delArm=null;write("shop/main",sh=>({...(sh||{}),items:[]}))}
+  else if(a==="shopopen"){if(isDM())write("shop/main",sh=>({items:[],...(sh||{}),open:!(sh&&sh.open)}))}
+  else if(a==="shoptype"){shopCfg.type=b.dataset.k;render()}
+  else if(a==="shoplv"){shopCfg.lv=d;render()}
+  else if(a==="shoproll"){if(!isDM())return;shopCfg.n=clamp(+(($("#shop-n")||{}).value)||8,1,30);const lv=shopCfg.lv||crewLevel(),T=SHOPTYPES.find(x=>x[0]===shopCfg.type)||SHOPTYPES[0],nu=rollShop(shopCfg.type,lv,shopCfg.n),repl=b.dataset.k==="replace";
+    await write("shop/main",sh=>{sh=sh||{};const keep=repl?[]:(sh.items||[]);const have=new Set(keep.map(x=>x.eid));return {...sh,name:sh.name||T[1],items:keep.concat(nu.filter(x=>!have.has(x.eid)))}});SFX.pick();toast(`${nu.length} Einträge gewürfelt (${T[1]}, Level ${lv}).`)}
+  else if(a==="shopbuy"){const c=myChar(),x=(shop.items||[]).find(v=>v.sid===id);if(!c||!x)return;
+    if((c.eddies||0)<x.price){toast(`Zu wenig Eddies: ${x.name} kostet ${x.price} €$.`);return}
+    let ok=false;await write("shop/main",sh=>{if(!sh||!sh.open)return null;const y=(sh.items||[]).find(v=>v.sid===id);if(!y||y.stock===0)return null;if(y.stock>0)y.stock--;ok=true;sh.log=[{who:c.handle||c.name,name:y.name,price:y.price,at:Date.now()},...(sh.log||[])].slice(0,20);return sh});
+    if(!ok){toast("Leider ausverkauft oder der Laden ist zu.");return}
+    const e=x.entry||{cat:"G",name:x.name},cerr=e.cat==="C"?cyberCheck(c,e):"";SFX.coin();if(e.cat==="C"&&!cerr)setTimeout(()=>SFX.chrome(),150);
+    await editChar(myCid(),c=>{c.eddies=(c.eddies||0)-x.price;applyEntry(c,e)});
+    toast(cerr?`${x.name} gekauft und im Rucksack. ${cerr}`:`${x.name} gekauft (−${x.price} €$)${e.cat==="C"?` · eingebaut, Humanity −${e.hl||0}`:""}.`)}
   else if(a==="catf"){catFilter=b.dataset.k;render()}
   else if(a==="catadd"){
     const e=allCatalog().find(x=>x.id===id);const to=catTo;if(!e||!to||!chars[to])return;
@@ -2985,7 +3170,7 @@ document.addEventListener("click",async e=>{
   else if(a==="npcatk"){const x=(combat.order||[])[+b.dataset.i];if(x)rollCheck(x.atk,`1W10 + ${x.atk}`,`· ${x.w||"Angriff"}`,x.name)}
   else if(a==="npcdmg"){const x=(combat.order||[])[+b.dataset.i];if(x)rollDamage({name:x.w||"Waffe",dmg:x.dmg||"3W6"},x.name)}
   else if(a==="newroom"){const n=$("#j-name").value.trim(),pin=$("#j-pin").value.trim();if(!n){toast("Gib zuerst deinen Namen ein.");return}if(!/^[0-9]{4,6}$/.test(pin)){toast("Wähle eine PIN mit 4 bis 6 Ziffern.");return}
-    const code=newCode();if(await login(n,code,pin))toast("Raum "+code+" erstellt. Teile den Link mit deiner Crew.")}
+    const code=newCode();if(await login(n,code,pin)){await write("game/state",g=>g&&g.dmId?null:({...(g||{}),dmId:me}));toast("Raum "+code+" erstellt. Du bist der DM. Teile den Link mit deiner Crew.")}}
   else if(a==="copylink"){const u=location.origin+location.pathname+"?raum="+room;try{await navigator.clipboard.writeText(u);toast("Link kopiert: "+u)}catch(e){toast(u)}}
   else if(a==="leave"){ls("nct-room",null);ls("nct-ph",null);location.href=location.pathname}
   else if(a==="claim"){
@@ -3000,8 +3185,10 @@ document.addEventListener("click",async e=>{
   else if(a==="mod"){pick.mod=clamp(pick.mod+d,-20,30);render()}
   else if(a==="roll")doRoll();
   else if(a==="check")doCheck();
-  else if(a==="takedm")write("game/state",g=>({...(g||{}),dmId:me}));
-  else if(a==="dropdm")write("game/state",g=>({...(g||{}),dmId:null}));
+  else if(a==="takedm")write("game/state",g=>g&&g.dmId?null:({...(g||{}),dmId:me}));
+  else if(a==="dmpass"){const to=($("#dm-pass")||{}).value;if(!to||!isDM())return;
+    if(delArm!=="dmpass"){delArm="dmpass";b.textContent="Sicher? Nochmal tippen";setTimeout(()=>{if(delArm==="dmpass"){delArm=null;render()}},4000);return}
+    delArm=null;await write("game/state",g=>g&&g.dmId===me?({...g,dmId:to}):null);toast(`${playerName(to)} ist jetzt DM.`)}
   else if(a==="clearlog"){if(!db)return;try{for(const r of rolls)await db.doc("rolls/"+r.id).delete();toast("Protokoll geleert.")}catch(e){toast(errMsg(e))}}
   else if(a==="delchar"){
     if(delArm!==id){delArm=id;b.textContent="Wirklich löschen?";setTimeout(()=>{if(delArm===id){delArm=null;render()}},4000);return}
@@ -3015,12 +3202,15 @@ document.addEventListener("input",e=>{
   if(el.id==="ck-label")pick.label=el.value;
   if(el.id==="wh-q"){wh.q=el.value;const H=$("#whHits");if(H){const q=wh.q.trim().toLowerCase(),hits=q?allCatalog().filter(e=>e.name.toLowerCase().includes(q)).slice(0,6):[];H.innerHTML=hits.map(e=>`<button class="pick" data-act="whadd" data-id="${e.id}"><b style="font-size:13px">+ ${esc(e.name)}</b><small>${e.price} €$</small></button>`).join("")}}
   if(el.id==="cat-q"){catQuery=el.value;const L=$("#catList");if(L)L.innerHTML=catList()}
+  if(el.id==="shop-q"){shopQ=el.value;const H=$("#shopHits");if(H){const q=shopQ.trim().toLowerCase();H.innerHTML=shopHits(q?allCatalog().filter(e=>e.name.toLowerCase().includes(q)).slice(0,8):[])}}
 });
 document.addEventListener("change",e=>{
   const el=e.target;
   if(el.dataset.draft&&draft){draft[el.dataset.draft]=el.value}
   if(el.dataset.bind&&myChar()&&myChar()[el.dataset.bind]!==el.value){const k=el.dataset.bind,v=el.value;editChar(myCid(),c=>{c[k]=v})}
   if(el.id==="ck-stat")pick.stat=el.value;
+  if(el.dataset.shop&&isDM()){const k=el.dataset.shop,sid=el.dataset.sid,v=Math.floor(+el.value);if(!isFinite(v))return;el.blur();write("shop/main",sh=>{const x=sh&&(sh.items||[]).find(y=>y.sid===sid);if(!x)return null;x[k]=k==="stock"?Math.max(-1,v):Math.max(0,v);return sh})}
+  if(el.id==="shop-name"&&isDM()){const v=el.value.trim().slice(0,60);write("shop/main",sh=>({items:[],...(sh||{}),name:v}))}
   if(el.classList&&el.classList.contains("psel")){const i=+el.dataset.pane,k=el.value,j=panes.indexOf(k);if(j>=0&&j!==i)[panes[i],panes[j]]=[panes[j],panes[i]];else panes[i]=k;activePane=i;savePanes();el.blur();render();drawMap()}
   if(el.id==="hiddenRoll")pick.hidden=el.checked;
   if(el.id==="mobAuto"){mob.auto=el.checked;lsS("nct-mobauto",mob.auto?"1":"0");if(mob.auto)mobKey=(combat.fight||"")+":"+combat.round+":"+combat.turn}
@@ -3048,6 +3238,22 @@ document.addEventListener("change",e=>{
 });
 document.addEventListener("submit",e=>{
   e.preventDefault();const f=e.target.dataset.form;
+  if(f==="charfix"){const c=myChar();if(!c)return;const st={},sk={},ch=[];
+    STATS.forEach(([k])=>{st[k]=clamp(Math.round(+$("#fx-"+k).value||c.stats[k]),1,10);if(st[k]!==c.stats[k])ch.push(`${k} ${c.stats[k]}→${st[k]}`)});
+    SKILLS.forEach(([n],i)=>{const v=clamp(Math.round(+$("#fx-sk-"+i).value||0),0,10);sk[n]=v;const o=(c.skills||{})[n]||0;if(v!==o)ch.push(`${n} ${o}→${v}`)});
+    const nm=$("#fx-name").value.trim()||c.name,hd=$("#fx-handle").value.trim(),rl=$("#fx-role").value;
+    if(nm!==c.name)ch.push("Name");if(hd!==(c.handle||""))ch.push("Handle");if(rl!==c.role)ch.push(`Role ${c.role}→${rl}`);
+    if(!ch.length){charFix=false;render();toast("Nichts geändert.");return}
+    editChar(myCid(),c=>{const oHp=c.hpMax||hpMax(c.stats),oHu=c.humMax||humMax(c.stats),full=c.hp>=oHp,lost=Math.max(0,oHu-(c.hum||0));
+      c.stats=st;c.skills=Object.fromEntries(Object.entries(sk).filter(([,v])=>v>0));c.name=nm;c.handle=hd;c.role=rl;
+      c.hpMax=hpMax(st);c.humMax=humMax(st);c.hp=full?c.hpMax:Math.min(c.hp,c.hpMax);c.hum=Math.max(0,c.humMax-lost);
+      c.fixLog=[{at:Date.now(),t:ch.join(", ").slice(0,300)},...(c.fixLog||[])].slice(0,10)}).then(()=>{charFix=false;render();toast("Akte korrigiert.")});return}
+  if(f==="tradenew"){const c=myChar();if(!c)return;const to=$("#tr-to").value,sel=$("#tr-it").value,give=Math.max(0,Math.floor(+$("#tr-g").value||0)),ask=Math.max(0,Math.floor(+$("#tr-a").value||0)),msg=$("#tr-m").value.trim().slice(0,120);
+    if(!to||!chars[to])return;let item=null;
+    if(sel){const [k,ref]=[sel.slice(0,1),sel.slice(2)];if(k==="w"){const w=(c.weapons||[]).find(x=>x.id===ref);if(!w)return;item={kind:"w",ref,name:w.name,qty:1}}else{const x=(c.inventory||[]).find(v=>v.id===ref);if(!x)return;item={kind:"i",ref,name:x.name,qty:clamp(Math.floor(+$("#tr-q").value||1),1,x.qty)}}}
+    if(!item&&!give){toast("Biete einen Gegenstand oder Eddies an.");return}
+    if(give>(c.eddies||0)){toast(`Du hast nur ${c.eddies||0} €$.`);return}
+    db.collection("trades").add({from:myCid(),to,by:me,item,give,ask,msg,status:"open",at:Date.now()}).then(()=>{SFX.click();toast(`Angebot an ${tName(to)} gesendet.`)}).catch(er=>toast(errMsg(er)));return}
   if(f==="invadd"){const n=$("#ia-n").value.trim();if(!n)return;const it={name:n,qty:Math.max(1,+$("#ia-q").value||1),note:$("#ia-o").value.trim()};e.target.reset();editChar(myCid(),c=>addItem(c,it))}
   if(f==="dmgive"){const to=$("#g-to").value,n=$("#g-n").value.trim();if(!n)return;const it={name:n,qty:Math.max(1,+$("#g-q").value||1),note:$("#g-o").value.trim()};$("#g-n").value="";$("#g-o").value="";$("#g-q").value=1;editChar(to,c=>addItem(c,it)).then(()=>toast(`${it.qty}× ${it.name} an ${chars[to]?.handle||chars[to]?.name} gegeben.`))}
   if(f==="catnew"){const cat=$("#cx-c").value,n=$("#cx-n").value.trim(),v=$("#cx-v").value.trim();if(!n)return;
@@ -3104,6 +3310,13 @@ async function publish(r,hidden){
     if(rolls.length>=36)for(const old of rolls.slice(30))db.doc("rolls/"+old.id).delete().catch(()=>{});
   }catch(e){toast(errMsg(e))}
 }
+
+/* Würfe der anderen: kleine Karte am Rand statt Vollbild */
+function sideRoll(r){let f=$("#rollFeed");if(!f){f=document.createElement("div");f.id="rollFeed";f.setAttribute("aria-live","polite");document.body.appendChild(f)}
+  const el=document.createElement("div");el.className="rf "+(r.flag||"");
+  el.innerHTML=`<div class="rf-t"><b>${esc(r.name||"?")}</b> <span>${esc((r.label||"").replace(/^·\s*/,""))}</span></div><div class="rf-n">${r.total}</div><small>${esc(r.formula||"")} → [${(r.results||[]).join(", ")}]${r.flag==="crit"?" · Krit":r.flag==="fumble"?" · Patzer":""}</small>`;
+  el.title="Klicken zum Schliessen";el.onclick=()=>el.remove();f.prepend(el);while(f.children.length>4)f.lastChild.remove();
+  setTimeout(()=>{el.classList.add("out");setTimeout(()=>el.remove(),400)},7000);try{SFX.click()}catch(e){}}
 
 /* Würfelanimation */
 const queue=[];let playing=false,closeTimer=null;
