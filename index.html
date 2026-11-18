@@ -357,6 +357,8 @@ body.multi #nav{display:none}
 .winsel button{padding:5px 9px;font-size:12px;letter-spacing:0;font-family:var(--f-mono)}
 nav button.pfocus{outline:1px solid var(--cyan);outline-offset:1px}
 @media (max-width:759px){.winsel{display:none}}
+#cfModal{position:fixed;inset:0;z-index:70;display:grid;place-items:center;background:rgba(14,4,16,.8);backdrop-filter:blur(3px);padding:16px}
+#cfModal .wh-in{max-width:440px}
 #whModal{position:fixed;inset:0;z-index:46;display:grid;place-items:center;background:rgba(14,4,16,.8);backdrop-filter:blur(3px);overflow:auto;
   padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .wh-in{width:min(520px,100%);display:grid;gap:12px;background:linear-gradient(180deg,#2a1230,#140d24);border:1px solid var(--mag);padding:22px 18px;box-shadow:0 0 50px rgba(255,46,136,.25);
@@ -934,7 +936,8 @@ function enterRoom(){
   db.collection("inits").onSnapshot(s=>{inits={};s.docs.forEach(d=>inits[d.id]=d.data());foldInits();renderSoon()},e=>toast(errMsg(e)));
   db.collection("maps").onSnapshot(s=>{maps={};s.docs.forEach(d=>maps[d.id]=d.data());if(!mapSaveT)mapLocal=null;renderSoon()},e=>toast(errMsg(e)));
   db.collection("tokens").onSnapshot(s=>{tokens={};s.docs.forEach(d=>tokens[d.id]=d.data());renderSoon()},e=>toast(errMsg(e)));
-  db.doc("game/map").onSnapshot(s=>{mapState=s.exists?s.data():{};renderSoon()},e=>toast(errMsg(e)));
+  db.doc("game/map").onSnapshot(s=>{const prev=mapState.active;mapState=s.exists?s.data():{};if(prev&&mapState.active!==prev){mapView.pid=null;mapView.fitFor=null}renderSoon()},e=>toast(errMsg(e)));
+  db.collection("fog").onSnapshot(s=>{s.docs.forEach(d=>{const k=d.id;if(fogDirty[k])return;const r=d.data().r||"",S=new Set();for(let i=0;i<r.length;i++)if(r.charCodeAt(i)===49)S.add(i);fogRev[k]=S});drawMap()},()=>{});
   db.doc("game/loot").onSnapshot(s=>{lootState=s.exists?s.data():{};if(!lootState.active)lootOpen=false;renderSoon()},e=>toast(errMsg(e)));
   db.collection("loot").onSnapshot(s=>{lootItems=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.order||0)-(b.order||0));renderSoon()},e=>toast(errMsg(e)));
   db.collection("catalog").onSnapshot(s=>{catalog=s.docs.map(d=>({...d.data(),id:d.id,custom:true}));renderSoon()},e=>toast(errMsg(e)));
@@ -2205,7 +2208,9 @@ function los(m,x0,y0,x1,y1){let dx=Math.abs(x1-x0),dy=-Math.abs(y1-y0),sx=x0<x1?
 function visibleSet(m,srcs,R=12){const v=new Set();for(const [sx,sy] of srcs){for(let y=sy-R;y<=sy+R;y++)for(let x=sx-R;x<=sx+R;x++){if(x<0||y<0||x>=m.w||y>=m.h||(x-sx)**2+(y-sy)**2>R*R)continue;if(los(m,sx,sy,x,y)||los(m,x,y,sx,sy))v.add(y*m.w+x)}}
   const add=[];v.forEach(i=>{const x=i%m.w,y=Math.floor(i/m.w);if(blocks(m,x,y))return;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<m.w&&yy<m.h&&blocks(m,xx,yy))add.push(yy*m.w+xx)}});add.forEach(i=>v.add(i));return v}
 /* Daten */
-const curMapId=()=>isDM()&&mapView.id&&maps[mapView.id]?mapView.id:(mapState.active&&maps[mapState.active]?mapState.active:(isDM()?(Object.keys(maps)[0]||null):null));
+const seenMaps=()=>[...new Set([...(mapState.seen||[]),mapState.active].filter(id=>id&&maps[id]))];
+const curMapId=()=>isDM()&&mapView.id&&maps[mapView.id]?mapView.id:(!isDM()&&mapView.pid&&seenMaps().includes(mapView.pid)?mapView.pid:(mapState.active&&maps[mapState.active]?mapState.active:(isDM()?(Object.keys(maps)[0]||null):null)));
+function setLive(id){return write("game/map",x=>({...(x||{}),active:id,seen:[...new Set([...((x&&x.seen)||[]),id])].filter(k=>maps[k]||k===id)}))}
 function curMap(){const id=curMapId();if(!id)return null;const z=viewZ(id);if(mapLocal&&mapLocal.id===id&&mapLocal.z===z)return mapLocal;return levelMap(id,z)}
 
 /* Ebenen */
@@ -2219,14 +2224,27 @@ function levelMap(id,z){const doc=maps[id];if(!doc)return null;const l=levelData
 const lvTokens=m=>mapTokens(m.id).filter(t=>(t.z||0)===m.z);
 const mapTokens=id=>Object.entries(tokens).filter(([,t])=>t.map===id).map(([k,t])=>({...t,id:k}));
 function pcSources(m){return lvTokens(m).filter(t=>t.kind==="pc").map(t=>[t.x,t.y])}
+function fogOn(m){const kd=maps[m.id]&&maps[m.id].kind;return kd!=="city"&&(kd==="district"||m.fog!==false||mapView.preview)}
 function fogFor(m){
-  const kd=maps[m.id]&&maps[m.id].kind,soft=kd==="district";if(kd==="city"||(!soft&&m.fog===false&&!mapView.preview))return {vis:null};
-  const vis=visibleSet(m,pcSources(m));
-  const ek=m.id+":"+(m.z||0);if(!mapExplored[ek]){mapExplored[ek]=new Set();try{(JSON.parse(localStorage.getItem("nct-exp-"+ek)||"[]")).forEach(i=>mapExplored[ek].add(i))}catch(e){}}
-  const ex=mapExplored[ek];let grew=false;vis.forEach(i=>{if(!ex.has(i)){ex.add(i);grew=true}});
-  if(grew){clearTimeout(fogFor.t);fogFor.t=setTimeout(()=>{try{localStorage.setItem("nct-exp-"+ek,JSON.stringify([...ex]))}catch(e){}},1500)}
+  const kd=maps[m.id]&&maps[m.id].kind,soft=kd==="district";if(!fogOn(m))return {vis:null};
+  const ex=fogRev[fogKey(m)]||new Set(),sight=visibleSet(m,pcSources(m)),vis=new Set();sight.forEach(i=>{if(ex.has(i))vis.add(i)});
   return {soft,vis,ex};
 }
+/* Aufgedeckte Felder: nur der DM lüftet den Nebel, gespeichert pro Karte und Ebene */
+let fogRev={},fogDirty={},fogTimers={};
+const fogKey=m=>m.id+"_"+(m.z||0);
+function fogSet(m){const k=fogKey(m);return fogRev[k]||(fogRev[k]=new Set())}
+function fogSave(m){const k=fogKey(m),w=m.w,h=m.h;fogDirty[k]=1;clearTimeout(fogTimers[k]);fogTimers[k]=setTimeout(()=>{const S=fogRev[k]||new Set();let r="";for(let i=0;i<w*h;i++)r+=S.has(i)?"1":"0";
+  db.doc("fog/"+k).set({r,w,h,at:Date.now()}).catch(e=>toast(errMsg(e))).then(()=>{setTimeout(()=>{delete fogDirty[k]},300)})},500)}
+function fogMark(m,idx,val){const S=fogSet(m);idx.forEach(i=>val?S.add(i):S.delete(i));fogSave(m);drawMap()}
+function fogBrush(m,cx,cy,val){const r=m.scale>=10?2:1,out=[];for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++)if(x>=0&&y>=0&&x<m.w&&y<m.h)out.push(y*m.w+x);fogMark(m,out,val)}
+function fogArea(m,a,b,val){const out=[];for(let y=Math.max(0,Math.min(a[1],b[1]));y<=Math.min(m.h-1,Math.max(a[1],b[1]));y++)for(let x=Math.max(0,Math.min(a[0],b[0]));x<=Math.min(m.w-1,Math.max(a[0],b[0]));x++)out.push(y*m.w+x);fogMark(m,out,val)}
+function fogRoom(m,cx,cy){if(cx<0||cy<0||cx>=m.w||cy>=m.h)return;const bar=i=>{const t=m.tiles[i],T=TILES[t];return !T||T.block||t==="D"||t==="d"||t==="."};
+  const seen=new Set(),st=[cy*m.w+cx],out=new Set();if(bar(st[0])){fogMark(m,[st[0]],true);return}
+  while(st.length&&seen.size<6000){const i=st.pop();if(seen.has(i))continue;seen.add(i);out.add(i);const x=i%m.w,y=(i-x)/m.w;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=m.w||Y>=m.h)continue;const j=Y*m.w+X;if(seen.has(j))continue;if(bar(j)){out.add(j)}else if(!dx||!dy)st.push(j)}}
+  fogMark(m,[...out],true);SFX.click()}
+const FOGTOOLS=[["move","Bewegen"],["fogon","Aufdecken"],["fogoff","Verdecken"],["fogrect","Bereich aufdecken"],["fogroom","Raum aufdecken"]];
 function saveMapSoon(){clearTimeout(mapSaveT);mapSaveT=setTimeout(saveMapNow,700)}
 function saveMapNow(){clearTimeout(mapSaveT);mapSaveT=null;if(!mapLocal||!isDM())return;const m=mapLocal,d=maps[m.id]||{};
   const doc={...d,name:m.name,w:m.w,h:m.h,type:m.type||d.type||"",seed:m.seed||d.seed||0,fog:m.fog!==false,at:Date.now()};
@@ -2345,7 +2363,8 @@ function mapShell(){
 function toolSwatch(k){if(TILES[k])return `<i class="sw" style="background:${TILES[k].c}"></i>`;return ""}
 function mapToolsHtml(){
   const dm=isDM(),m=curMap(),list=Object.entries(maps).sort((a,b)=>(b[1].at||0)-(a[1].at||0));
-  if(!dm)return m?`<div class="row" style="justify-content:space-between"><h2>${esc(m.name||"Karte")}${levelList(maps[m.id]).length>1?` <span class="tag">${esc(m.lvName||"")}</span>`:""}</h2><span class="muted" style="font-size:13px">Zieh deine Figur. Türen öffnest du durch Antippen, wenn du direkt daneben stehst. Auf einer Treppe wechselst du die Ebene.</span></div>`:"";
+  const sm=dm?[]:seenMaps();
+  if(!dm)return (sm.length>1?`<div class="row" style="align-items:end"><div class="field" style="min-width:200px"><label class="label" for="pmap-sel">Karten, auf denen ihr schon wart</label><select id="pmap-sel">${sm.map(id=>`<option value="${id}" ${id===(m&&m.id)?"selected":""}>${esc(maps[id].name||"Karte")}${id===mapState.active?" · aktuell":""}</option>`).join("")}</select></div>${m&&m.id!==mapState.active?`<button class="btn small primary" data-act="pmapnow">Zurück zur aktuellen Karte</button>`:""}</div>`:"")+(m?`<div class="row" style="justify-content:space-between"><h2>${esc(m.name||"Karte")}${levelList(maps[m.id]).length>1?` <span class="tag">${esc(m.lvName||"")}</span>`:""}</h2><span class="muted" style="font-size:13px">Zieh deine Figur. Türen öffnest du durch Antippen, wenn du direkt daneben stehst. Auf einer Treppe wechselst du die Ebene.</span></div>`:"");
   return `<div class="row" style="justify-content:space-between;align-items:end"><div class="row" style="align-items:end">
       ${list.length?`<div class="field" style="min-width:180px"><label class="label" for="map-sel">Karte</label><select id="map-sel">${list.map(([id,x])=>`<option value="${id}" ${id===(m&&m.id)?"selected":""}>${esc(x.name||"Karte")}${id===mapState.active?" · live":""}</option>`).join("")}</select></div>${m?`<div class="field" style="min-width:120px"><label class="label" for="map-scale">Massstab</label><select id="map-scale" ${maps[m.id]&&maps[m.id].kind?"disabled title=\"Fest für diese Kartenart\"":""}>${SCALES.map(([v,l])=>`<option value="${v}" ${v===mapScale(m.id)?"selected":""}>${l} · 1 Feld = ${v} m</option>`).join("")}${SCALES.some(s=>s[0]===mapScale(m.id))?"":`<option value="${mapScale(m.id)}" selected>Eigener · 1 Feld = ${mapScale(m.id)} m</option>`}</select></div>`:""}${m&&maps[m.id]&&(maps[m.id].kind==="city"||maps[m.id].kind==="district")?`<button class="btn small ${mapView.zoomPick?"primary":""}" data-act="mzoompick" aria-pressed="${!!mapView.zoomPick}">${mapView.zoomPick?(maps[m.id].kind==="city"?"Tippe auf ein Viertel …":"Tippe auf ein Gebäude oder eine Strasse …"):maps[m.id].kind==="city"?"Viertel öffnen":"Gebäude öffnen"}</button><span class="muted" style="font-size:12px;align-self:center">oder Doppelklick auf die Karte</span>`:""}${m&&maps[m.id]&&maps[m.id].kind==="tactical"?`<button class="btn small" data-act="mintfill">Innenräume würfeln</button><button class="btn small" data-act="mintclear">Innen leeren</button>`:""}${m&&maps[m.id]&&maps[m.id].parent&&maps[maps[m.id].parent]?`<button class="btn small" data-act="mparent">↑ ${esc(maps[maps[m.id].parent].name||"Zurück")}</button>`:""}`:""}
       <button class="btn ${mapView.gen?"":"primary"}" data-act="mgen">${mapView.gen?"Generator schliessen":"Neue Karte"}</button></div>
@@ -2362,6 +2381,8 @@ function mapToolsHtml(){
     <span class="label">Grösse</span><div class="seg">${MAPSIZES.map(([k,l,w,h])=>`<button data-act="mgsize" data-k="${k}" aria-pressed="${mapView.gsize===k}">${l} · ${w}×${h}</button>`).join("")}</div>
     <div class="row"><button class="btn primary" data-act="mcreate">Karte erzeugen</button>${m&&m.type&&m.type!=="empty"?`<button class="btn" data-act="mreroll">Diese Karte neu würfeln</button>`:""}</div>
     <p class="muted" style="margin:0;font-size:13px">Wände, Türen, Böden und Einrichtung entstehen automatisch. Rot gestrichelte Felder sind versteckte Spawn-Punkte hinter Wänden und Türen. Dort kannst du Gegner im Voraus verstecken.</p></div>`:""}
+  ${m&&fogOn(m)?`<div class="toolgrp"><span class="label">Nebel <span class="muted" style="text-transform:none;letter-spacing:0">· nur du deckst auf</span></span><div class="chips">${FOGTOOLS.map(([k,l])=>`<button class="pick tool" data-act="mtool" data-k="${k}" aria-pressed="${mapView.tool===k}">${l}</button>`).join("")}<button class="btn small" data-act="fogall">Ebene ganz aufdecken</button><button class="btn small" data-act="fognone">Ebene ganz verdecken</button></div>
+    ${mapView.tool.startsWith("fog")?`<p class="muted" style="margin:0;font-size:13px">${mapView.tool==="fogroom"?"Tippe in einen Raum: Boden bis zu den Wänden und Türen wird aufgedeckt.":mapView.tool==="fogrect"?"Rechteck aufziehen, das aufgedeckt wird.":mapView.tool==="fogon"?"Über die Karte wischen, um aufzudecken.":"Über die Karte wischen, um wieder zu verdecken."} Dunkel getönte Felder sehen die Spieler nicht. Gegner sehen sie nur in aufgedeckten Feldern mit Sichtlinie.</p>`:""}</div>`:""}
   ${m&&mapView.edit?`<div class="stack" style="gap:8px">${TOOLGROUPS.map(([gl,tools])=>`<div class="toolgrp"><span class="label">${gl}</span><div class="chips">${tools.map(([k,l])=>`<button class="pick tool" data-act="mtool" data-k="${k}" aria-pressed="${mapView.tool===k||(mapView.tool==="room"&&mapView.floor===k)}">${toolSwatch(k)}<b>${l}</b></button>`).join("")}</div></div>`).join("")}
     <p class="muted" style="margin:0;font-size:13px">${mapView.tool==="room"?`Rechteck aufziehen: Boden „${(TILES[mapView.floor]||TILES.f).n}“ innen, Wände ringsum automatisch${mapView.furnish?", Einrichtung passend zum Boden":""}. Bodenart vorher bei „Böden“ wählen. Danach mit „Tür“ einen Eingang setzen.`:mapView.tool==="road"?"Linie ziehen: Strasse mit Gehwegen auf beiden Seiten.":mapView.tool==="bridge"?"Linie ziehen: zwei Felder breiter Steg. Auf oberen Ebenen über Gassen und Strassen ziehen, unten erscheint der Schatten.":mapView.tool==="spawn"?"Antippen setzt oder entfernt einen versteckten Spawn-Punkt.":mapView.tool==="move"?"Figuren ziehen, Karte verschieben, Türen antippen.":mapView.tool==="erase"?"Entfernt zuerst Einrichtung, dann den Boden.":["dZ","dH","dJ"].includes(mapView.tool)?"Setze den Übergang auf beiden Ebenen an dieselbe Stelle (bis 4 Felder Abstand). Treppe und Leiter verbinden die nächste Ebene, ein Lift alle Ebenen mit Lift.":mapView.tool[0]==="d"&&mapView.tool.length===2?"Auf Böden tippen oder malen. Autos werden automatisch zwei Felder lang.":"Über die Karte malen."}</p>
     <div class="row"><label class="row" style="gap:6px"><input type="checkbox" id="map-furn" ${mapView.furnish?"checked":""} style="width:auto"> <span>Räume automatisch einrichten</span></label><label class="row" style="gap:6px"><input type="checkbox" id="map-fog" ${m.fog!==false?"checked":""} style="width:auto"> <span>Automatischer Nebel für Spieler</span></label><div class="field" style="width:180px"><label class="label" for="map-name">Name</label><input id="map-name" value="${esc(m.name||"")}"></div><button class="btn small mag" data-act="mdel">Karte löschen</button></div></div>`:""}`;
@@ -2459,6 +2480,7 @@ function drawIsoNow(cv,m){
           x.fillStyle=col;x.beginPath();x.moveTo(a[0],a[1]-H2);x.lineTo(b[0],b[1]-H2);x.lineTo(c[0],c[1]-H2);x.lineTo(e[0],e[1]-H2);x.fill()}
         else if("ZHJ".includes(dc)){x.fillStyle=dc==="J"?"#7fb3e6":dc==="H"?"#e3b62c":"#e6e6e6";x.font=`700 ${Math.round(clamp(hw*.6,9,14))}px "IBM Plex Sans",Arial,sans-serif`;x.textAlign="center";x.textBaseline="middle";x.fillText(dc==="J"?"Lift":dc==="H"?"Leiter":"Treppe",p[0],p[1]-hh)}}
       if(!dm&&F.vis&&!vis(i)){dia(cx,cy,0);x.fillStyle=F.soft?"rgba(10,10,14,.5)":"rgba(10,10,14,.55)";x.fill()}
+      if(dm&&F.ex&&!F.ex.has(i)){dia(cx,cy,0);x.fillStyle="rgba(8,8,16,.5)";x.fill()}
       if(dm&&(m.spawn||[]).includes(i)){dia(cx,cy,0);x.strokeStyle="#d63031";x.setLineDash([3,3]);x.lineWidth=1.5;x.stroke();x.setLineDash([])}}
     (toks[d]||[]).forEach(({t,fx,fy})=>{const p=P(fx,fy);drawTok(t,p[0],p[1])});
   }
@@ -2485,10 +2507,10 @@ function drawMapNow(){
     ov.forEach(i=>{const cx=i%m.w,cy=Math.floor(i/m.w),px=ox+cx*cs,py=oy+cy*cs;if(!ov.has(i-m.w)||cy===0){x.moveTo(px,py);x.lineTo(px+cs,py)}if(!ov.has(i+m.w)){x.moveTo(px,py+cs);x.lineTo(px+cs,py+cs)}if(!ov.has(i-1)||cx===0){x.moveTo(px,py);x.lineTo(px,py+cs)}if(!ov.has(i+1)||cx===m.w-1){x.moveTo(px+cs,py);x.lineTo(px+cs,py+cs)}});
     x.stroke();x.setLineDash([]);x.lineWidth=1}}
   const x0=Math.max(0,Math.floor(-ox/cs)),y0=Math.max(0,Math.floor(-oy/cs)),x1=Math.min(m.w-1,Math.ceil((W-ox)/cs)),y1=Math.min(m.h-1,Math.ceil((H-oy)/cs));
-  if(F.vis){for(let cy=y0;cy<=y1;cy++)for(let cx=x0;cx<=x1;cx++){const i=cy*m.w+cx;if(F.vis.has(i))continue;const known=F.ex&&F.ex.has(i);
-    x.fillStyle=dm?"rgba(20,20,30,.3)":F.soft?(known?"rgba(20,20,26,.3)":"rgba(20,20,26,.5)"):known?"rgba(25,25,32,.68)":"#1e1e22";x.fillRect(ox+cx*cs,oy+cy*cs,cs+.6,cs+.6)}}
+  if(F.vis){for(let cy=y0;cy<=y1;cy++)for(let cx=x0;cx<=x1;cx++){const i=cy*m.w+cx;if(F.vis.has(i))continue;const known=F.ex&&F.ex.has(i);if(dm&&known)continue;
+    x.fillStyle=dm?"rgba(8,8,16,.5)":F.soft?(known?"rgba(20,20,26,.3)":"rgba(20,20,26,.5)"):known?"rgba(25,25,32,.68)":"#1e1e22";x.fillRect(ox+cx*cs,oy+cy*cs,cs+.6,cs+.6)}}
   if(dm)(m.spawn||[]).forEach(i=>{const cx=i%m.w,cy=Math.floor(i/m.w),px=ox+cx*cs,py=oy+cy*cs;x.strokeStyle="#d63031";x.lineWidth=2;x.setLineDash([3,3]);x.strokeRect(px+3,py+3,cs-6,cs-6);x.setLineDash([])});
-  if(mact&&mact.kind==="rect"){const a=mact.a,b=mact.b;x.strokeStyle="#e67e22";x.lineWidth=2;x.strokeRect(ox+Math.min(a[0],b[0])*cs,oy+Math.min(a[1],b[1])*cs,(Math.abs(a[0]-b[0])+1)*cs,(Math.abs(a[1]-b[1])+1)*cs)}
+  if(mact&&(mact.kind==="rect"||mact.kind==="fogrect")){const a=mact.a,b=mact.b;x.strokeStyle="#e67e22";x.lineWidth=2;x.strokeRect(ox+Math.min(a[0],b[0])*cs,oy+Math.min(a[1],b[1])*cs,(Math.abs(a[0]-b[0])+1)*cs,(Math.abs(a[1]-b[1])+1)*cs)}
   if(mact&&mact.kind==="bridge"){const [ax,ay]=mact.a,[bx,by]=mact.b;x.strokeStyle="#e67e22";x.lineWidth=cs*2;x.globalAlpha=.3;x.beginPath();x.moveTo(ox+(ax+.5)*cs,oy+(ay+.5)*cs);Math.abs(bx-ax)>=Math.abs(by-ay)?x.lineTo(ox+(bx+.5)*cs,oy+(ay+.5)*cs):x.lineTo(ox+(ax+.5)*cs,oy+(by+.5)*cs);x.stroke();x.globalAlpha=1}
   if(mact&&mact.kind==="road"){const [ax,ay]=mact.a,[bx,by]=mact.b;x.strokeStyle="#f5e400";x.lineWidth=cs*3;x.globalAlpha=.25;x.beginPath();x.moveTo(ox+(ax+.5)*cs,oy+(ay+.5)*cs);Math.abs(bx-ax)>=Math.abs(by-ay)?x.lineTo(ox+(bx+.5)*cs,oy+(ay+.5)*cs):x.lineTo(ox+(ax+.5)*cs,oy+(by+.5)*cs);x.stroke();x.globalAlpha=1}
   if(cs>=13){x.font=`700 ${Math.round(clamp(cs*.34,10,14))}px "IBM Plex Sans",Arial,sans-serif`;x.textBaseline="middle";x.textAlign="left";
@@ -2671,8 +2693,12 @@ document.addEventListener("pointerdown",e=>{
   const [cx,cy,lx,ly]=cellAt(e),tool=mapView.tool,dmEdit=isDM()&&mapView.edit&&!mapView.preview;
   if(isDM()&&mapView.zoomPick&&!mapView.preview){if(cx>=0&&cy>=0&&cx<m.w&&cy<m.h)openChild(m,cx,cy);mact=null;return}
   if(isDM()&&mapView.place&&!mapView.preview){const f=FOES.find(x=>x.k===mapView.place);if(f&&cx>=0&&cy>=0&&cx<m.w&&cy<m.h){const F=foeStats(f,0);addFoeToken(m,{...F,base:f.n},cy*m.w+cx,nextFoeName(f.n)).then(()=>SFX.click()).catch(er=>toast(errMsg(er)));drawMap()}mact=null;return}
-  if(dmEdit&&tool!=="move"&&mapView.iso){toast("Bauen geht in der 2D-Ansicht. Tippe auf „2D“.");mact=null;return}
-  if(dmEdit&&tool!=="move"){const em=editMap();
+  if(isDM()&&!mapView.preview&&tool.startsWith("fog")&&fogOn(m)){
+    if(tool==="fogroom"){fogRoom(m,cx,cy);mact=null;return}
+    if(tool==="fogrect"){mact={kind:"fogrect",a:[cx,cy],b:[cx,cy]};drawMap();return}
+    mact={kind:"fog",val:tool==="fogon",last:cy*m.w+cx};fogBrush(m,cx,cy,mact.val);return}
+  if(dmEdit&&tool!=="move"&&!tool.startsWith("fog")&&mapView.iso){toast("Bauen geht in der 2D-Ansicht. Tippe auf „2D“.");mact=null;return}
+  if(dmEdit&&tool!=="move"&&!tool.startsWith("fog")){const em=editMap();
     if(tool==="room"||tool==="road"||tool==="bridge"){mact={kind:tool==="room"?"rect":tool,a:[cx,cy],b:[cx,cy]};drawMap();return}
     if(tool==="spawn"){if(cx>=0&&cy>=0&&cx<m.w&&cy<m.h){const i=cy*m.w+cx,k=em.spawn.indexOf(i);k>=0?em.spawn.splice(k,1):em.spawn.push(i);drawMap();saveMapSoon()}mact=null;return}
     mact={kind:"paint",last:cy*m.w+cx};paintAt(em,cx,cy);return}
@@ -2692,7 +2718,8 @@ document.addEventListener("pointermove",e=>{
   if(mact.kind==="pan"){const dx=e.clientX-mact.sx,dy=e.clientY-mact.sy;if(Math.hypot(dx,dy)>4)mact.moved=true;mapView.ox=mact.ox+dx;mapView.oy=mact.oy+dy;drawMap()}
   else if(mact.kind==="tok"){mact.px=lx;mact.py=ly;if(Math.hypot(lx-mact.sx,ly-mact.sy)>5)mact.moved=true;if(mact.moved){const [fx,fy]=s2c(lx+(mact.gx||0),ly+(mact.gy||0));liveSend({id:mact.id,map:m.id,x:fx,y:fy})}drawMap()}
   else if(mact.kind==="paint"){const i=cy*m.w+cx;if(i!==mact.last){mact.last=i;paintAt(editMap(),cx,cy)}}
-  else if(mact.kind==="rect"||mact.kind==="road"||mact.kind==="bridge"){mact.b=[cx,cy];drawMap()}
+  else if(mact.kind==="rect"||mact.kind==="road"||mact.kind==="bridge"||mact.kind==="fogrect"){mact.b=[cx,cy];drawMap()}
+  else if(mact.kind==="fog"){const i=cy*m.w+cx;if(i!==mact.last&&cx>=0&&cy>=0&&cx<m.w&&cy<m.h){mact.last=i;fogBrush(m,cx,cy,mact.val)}}
 });
 let lastTap={};
 function mapPointerEnd(e){
@@ -2705,6 +2732,7 @@ function mapPointerEnd(e){
   else if(a.kind==="pan"&&!a.moved&&isDM()&&!mapView.preview&&maps[m.id]&&(maps[m.id].kind==="city"||maps[m.id].kind==="district")&&lastTap.id===m.id&&lastTap.cx===a.cx&&lastTap.cy===a.cy&&Date.now()-lastTap.t<400){lastTap={};openChild(m,a.cx,a.cy)}
   else if(a.kind==="pan"&&!a.moved){lastTap={id:m.id,cx:a.cx,cy:a.cy,t:Date.now()};if(!tapDoor(m,a.cx,a.cy)&&isDM()){mapView.sel=a.tok||null;$("#mapSide").innerHTML=mapSideHtml()}drawMap()}
   else if(a.kind==="rect"){applyRoom(editMap(),a.a,a.b);drawMap()}
+  else if(a.kind==="fogrect"){fogArea(m,a.a,a.b,true)}
   else if(a.kind==="road"){applyRoad(editMap(),a.a,a.b);drawMap()}
   else if(a.kind==="bridge"){applyBridge(editMap(),a.a,a.b);drawMap()}
   else drawMap();
@@ -2715,6 +2743,21 @@ document.addEventListener("wheel",e=>{const cv=e.target.closest&&e.target.closes
   mapView.ox=mx-(mx-mapView.ox)*z/z0;mapView.oy=my-(my-mapView.oy)*z/z0;mapView.zoom=z;drawMap()},{passive:false});
 window.addEventListener("resize",()=>drawMap());
 
+
+/* --- Sicherheitsabfrage beim Entfernen aus dem Inventar --- */
+const CONFIRM_ACTS=new Set(["invdel","wdel","dmwdel","dmadel","dmcdel"]);
+function askRemove(b){
+  const host=b.closest(".item,.gitem,.wcard,.slot")||b.parentElement,nEl=host&&(host.querySelector(".n b")||host.querySelector(".n")||host.querySelector("b"));
+  let name=nEl?[...nEl.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join(" ").trim():"";if(!name&&nEl)name=nEl.textContent.trim();name=name.slice(0,60);
+  const ch=b.dataset.id&&chars[b.dataset.id],who=ch&&b.dataset.id!==myCid()?` von ${ch.handle||ch.name}`:"";
+  let el=$("#cfModal");if(!el){el=document.createElement("div");el.id="cfModal";document.body.appendChild(el)}
+  el.hidden=false;el.innerHTML=`<div class="wh-in" role="alertdialog" aria-modal="true" aria-labelledby="cfT"><span class="label" style="color:var(--mag)">Entfernen</span><h2 id="cfT" style="font-size:20px">${name?`„${esc(name)}“`:"Diesen Eintrag"} wirklich aus dem Inventar${esc(who)} entfernen?</h2><p class="muted" style="margin:0">Das lässt sich nicht rückgängig machen.</p><div class="row" style="justify-content:flex-end"><button class="btn" id="cfNo">Abbrechen</button><button class="btn mag" id="cfYes">Entfernen</button></div></div>`;
+  const close=()=>{el.hidden=true;el.innerHTML=""};
+  el.onclick=e=>{if(e.target===el)close()};$("#cfNo").onclick=close;
+  $("#cfYes").onclick=()=>{close();const t=document.createElement("button");t.hidden=true;Object.assign(t.dataset,b.dataset);t.dataset.ok="1";document.body.appendChild(t);t.click();t.remove()};
+  setTimeout(()=>{const y=$("#cfNo");if(y)y.focus()},30);
+}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){const el=$("#cfModal");if(el&&!el.hidden){el.hidden=true;el.innerHTML=""}}});
 
 /* --- Handel zwischen Spielern --- */
 let tradeSeen=null;
@@ -2906,6 +2949,7 @@ document.addEventListener("click",async e=>{
   const t=e.target.closest("[data-tab]");if(t){openTab(t.dataset.tab,t);giveOpen=null;render();return}
   const b=e.target.closest("[data-act]");if(!b)return;
   const a=b.dataset.act,d=+b.dataset.d||0,id=b.dataset.id;
+  if(CONFIRM_ACTS.has(a)&&!b.dataset.ok){askRemove(b);return}
   if(a==="dstat"){draft.stats[b.dataset.k]=clamp(draft.stats[b.dataset.k]+d,SMIN,SMAX);render()}
   else if(a==="portpick"){const f=$("#portraitFile");f.value="";f.click()}
   else if(a==="fixopen"){charFix=!charFix;render()}
@@ -3058,15 +3102,18 @@ document.addEventListener("click",async e=>{
   else if(a==="mcreate"){const sd=Math.floor(Math.random()*1e9),g=mapView.gtype==="metropolis"?genMetro(sd):genMap(mapView.gtype,mapView.gsize,sd),id=uid();
     const doc={name:mapView.gtype==="metropolis"?"Stadt "+(Object.keys(maps).filter(k=>maps[k].kind==="city").length+1):(MAPTYPES.find(t=>t[0]===mapView.gtype)||["","Karte"])[1]+" "+(Object.keys(maps).length+1),fog:true,scale:mapView.gtype==="city"?10:2,...g,at:Date.now()};
     maps[id]=doc;mapView.id=id;mapView.gen=false;mapView.fitFor=null;mapLocal=null;
-    try{await db.doc("maps/"+id).set(doc);if(!mapState.active||!maps[mapState.active])await write("game/map",x=>({...(x||{}),active:id}))}catch(e){toast(errMsg(e))}
+    try{await db.doc("maps/"+id).set(doc);if(!mapState.active||!maps[mapState.active])await setLive(id)}catch(e){toast(errMsg(e))}
     SFX.chrome();render()}
   else if(a==="mreroll"){const m=curMap();if(!m)return;if(maps[m.id]&&maps[m.id].kind){toast("Stadt-, Viertel- und Einsatzkarten bleiben fest, damit ihr an denselben Ort zurückkehren könnt. Leg dafür eine neue Stadt an.");return}const sz=(MAPSIZES.find(x=>x[2]===m.w)||MAPSIZES[1])[0],g=genMap(m.type,sz,Math.floor(Math.random()*1e9));
     mapLocal={...m,...g,id:m.id};saveMapNow();const tk=mapTokens(m.id);let k=0;
     for(const t of tk){if(t.kind==="pc"){const i=g.start[k++%Math.max(1,g.start.length)]||0;tokens[t.id]={...tokens[t.id],x:i%g.w,y:Math.floor(i/g.w)};await db.doc("tokens/"+t.id).set(tokens[t.id])}else{await db.doc("tokens/"+t.id).delete();delete tokens[t.id]}}
     mapView.fitFor=null;SFX.chrome();render()}
-  else if(a==="mlive"){const m=curMap();if(m)write("game/map",x=>({...(x||{}),active:m.id})).then(()=>toast("Die Spieler sehen jetzt "+(m.name||"die Karte")+"."))}
+  else if(a==="mlive"){const m=curMap();if(m)setLive(m.id).then(()=>toast("Die Spieler sehen jetzt "+(m.name||"die Karte")+"."))}
   else if(a==="medit"){mapView.edit=!mapView.edit;mapView.tool="move";mapView.place=null;if(!mapView.edit)saveMapNow();render()}
   else if(a==="mprev"){mapView.preview=!mapView.preview;render()}
+  else if(a==="fogall"||a==="fognone"){const m=curMap();if(!m||!isDM())return;if(a==="fognone"){if(delArm!=="fognone"){delArm="fognone";b.textContent="Sicher? Nochmal tippen";setTimeout(()=>{if(delArm==="fognone"){delArm=null;render()}},4000);return}delArm=null}
+    const all=[];for(let i=0;i<m.w*m.h;i++)all.push(i);fogRev[fogKey(m)]=new Set();fogMark(m,all,a==="fogall");toast(a==="fogall"?"Ebene aufgedeckt.":"Ebene verdeckt.")}
+  else if(a==="pmapnow"){mapView.pid=null;mapView.fitFor=null;render()}
   else if(a==="mtool"){const k=b.dataset.k;if(mapView.tool==="room"&&FLOORS.includes(k)){mapView.floor=k}else{mapView.tool=k;if(FLOORS.includes(k))mapView.floor=k}render()}
   else if(a==="mdelall"){const ids=Object.keys(maps);if(!ids.length)return;
     if(delArm!=="allmaps"){delArm="allmaps";$("#mapSide").innerHTML=mapSideHtml();setTimeout(()=>{if(delArm==="allmaps"){delArm=null;const s=$("#mapSide");if(s)s.innerHTML=mapSideHtml()}},5000);return}
@@ -3230,6 +3277,7 @@ document.addEventListener("change",e=>{
   if(el.dataset.enc){const f=enc[+el.dataset.i],k=el.dataset.enc;if(f){const num=["hp","sp","atk","ref","dodge"].includes(k);f[k]=num?Math.max(0,Math.round(+el.value||0)):el.value.trim()||f[k];if(k==="hp")f.hp=Math.max(1,f.hp)}el.blur();render()}
   if(el.id==="cat-to"){catTo=el.value}
   if(el.id==="loot-split"){lootCfg.split=el.checked}
+  if(el.id==="pmap-sel"){mapView.pid=el.value===mapState.active?null:el.value;mapView.fitFor=null;el.blur();render()}
   if(el.id==="map-sel"){saveMapNow();mapView.id=el.value;mapLocal=null;mapView.fitFor=null;mapView.sel=null;el.blur();render()}
   if(el.id==="map-furn"){mapView.furnish=el.checked;el.blur();render()}
   if(el.id==="map-fog"){const m=editMap();if(m){m.fog=el.checked;saveMapNow()}el.blur();render()}
